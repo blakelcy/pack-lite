@@ -7,18 +7,21 @@
 	let processing = true;
 	let error: string | null = null;
 
+	// routes/auth/callback/+page.svelte
 	onMount(async () => {
 		try {
-			// The hash contains the access token after OAuth
+			console.log('Starting callback handling...');
 			const hashParams = new URLSearchParams(window.location.hash.substring(1));
 			const access_token = hashParams.get('access_token');
+
+			console.log('Access token exists:', !!access_token);
 
 			if (!access_token) {
 				console.error('No access token found');
 				throw new Error('No access token found');
 			}
 
-			// Set the session with Supabase
+			console.log('Setting session...');
 			const {
 				data: { session },
 				error: sessionError
@@ -27,11 +30,16 @@
 				refresh_token: hashParams.get('refresh_token') || ''
 			});
 
+			console.log('Session result:', {
+				hasSession: !!session,
+				hasError: !!sessionError
+			});
+
 			if (sessionError) throw sessionError;
 
 			if (session) {
-				// Set cookies via fetch request
-				await fetch('/auth/session', {
+				console.log('Setting cookies...');
+				const response = await fetch('/auth/session', {
 					method: 'POST',
 					headers: {
 						'Content-Type': 'application/json'
@@ -42,7 +50,10 @@
 					})
 				});
 
-				await goto('/dashboard');
+				console.log('Cookie set response:', response.status);
+
+				console.log('Redirecting to /app...');
+				await goto('/app');
 			} else {
 				throw new Error('No session established');
 			}
@@ -54,14 +65,3 @@
 		}
 	});
 </script>
-
-{#if processing}
-	<div class="flex justify-center items-center min-h-screen">
-		<p>Processing authentication...</p>
-	</div>
-{:else if error}
-	<div class="flex justify-center items-center min-h-screen">
-		<p class="text-red-600">Error: {error}</p>
-		<p class="text-sm">Redirecting to login...</p>
-	</div>
-{/if}
