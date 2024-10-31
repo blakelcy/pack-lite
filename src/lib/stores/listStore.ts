@@ -148,6 +148,41 @@ function createListStore() {
 			}));
 		},
 
+		deleteList: async (id: string) => {
+			update((state) => ({ ...state, loading: true, error: null }));
+
+			try {
+				// Delete the list
+				const { error } = await supabase.from('lists').delete().eq('id', id);
+
+				if (error) throw error;
+
+				// Get updated lists after deletion
+				const {
+					data: { user }
+				} = await supabase.auth.getUser();
+
+				if (!user) throw new Error('User must be authenticated');
+
+				const { data: updatedLists, error: listsError } = await supabase
+					.from('lists')
+					.select('*')
+					.eq('user_id', user.id)
+					.order('created_at', { ascending: false });
+
+				if (listsError) throw listsError;
+
+				update((state) => ({
+					list: null,
+					lists: updatedLists || [],
+					error: null,
+					loading: false
+				}));
+			} catch (error) {
+				update((state) => ({ ...state, error, loading: false }));
+				throw error;
+			}
+		},
 		reset: () => {
 			set({
 				list: null,
