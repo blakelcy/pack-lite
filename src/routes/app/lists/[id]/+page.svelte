@@ -211,7 +211,7 @@
 						<h2 class="text-2xl font-bold mb-3 px-2">{category}</h2>
 						<div class="grid grid-cols-3 gap-2">
 							<!-- Changed to always be 3 columns with smaller gap -->
-							{#each items as item (item.id)}
+							{#each items as item (`${item.list_id}-${item.id}`)}
 								<div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
 									<div class="flex flex-col">
 										<!-- Item Image -->
