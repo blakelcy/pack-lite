@@ -6,6 +6,7 @@
 	import { Plus, MagnifyingGlass } from 'phosphor-svelte';
 	import BottomNav from '$lib/components/navigation/BottomNav.svelte';
 	import { page } from '$app/stores';
+	import { listStore } from '$lib/stores/listStore';
 
 	export let data: PageData;
 	export let form: ActionData;
@@ -35,6 +36,21 @@
 	function handleCreateList() {
 		if (isCreatingList) return;
 		isCreatingList = true;
+	}
+
+	// Just modify your form enhancement slightly
+	function handleEnhance() {
+		isCreatingList = true;
+
+		return async ({ result }) => {
+			isCreatingList = false;
+			if (result.type === 'success') {
+				const { list } = result.data;
+				// Optionally update the store before navigation
+				listStore.fetchUserLists();
+				goto(`/app/lists/${list.id}`);
+			}
+		};
 	}
 
 	const legendColors = [
@@ -146,20 +162,7 @@
 	</main>
 
 	<!-- Create List Form -->
-	<form
-		method="POST"
-		action="?/createList"
-		use:enhance={() => {
-			isCreatingList = true;
-			return async ({ result }) => {
-				isCreatingList = false;
-				if (result.type === 'success') {
-					const { list } = result.data;
-					goto(`/app/lists/${list.id}`);
-				}
-			};
-		}}
-	>
+	<form method="POST" action="?/createList" use:enhance={handleEnhance}>
 		<button
 			type="submit"
 			class="fixed bottom-24 right-6 w-12 h-12 rounded-full bg-primary-500 text-white

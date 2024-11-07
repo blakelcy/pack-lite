@@ -37,7 +37,9 @@ function createItemStore() {
 					.from('items')
 					.insert({
 						...itemData,
-						user_id: user.id
+						user_id: (await supabase.auth.getUser()).data.user?.id,
+						weight: itemData.weight,
+						weight_unit: itemData.weight_unit
 					})
 					.select()
 					.single();

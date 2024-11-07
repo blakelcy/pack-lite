@@ -3,7 +3,8 @@
 	import { createEventDispatcher } from 'svelte';
 	import { TShirt, Cookie } from 'phosphor-svelte';
 	import { itemStore } from '$lib/stores/itemStore';
-	import type { Database } from '$lib/types/database.types';
+	import type { Database } from '$lib/database.types';
+	import { listStore } from '$lib/stores/listStore';
 
 	type ItemInsert = Database['public']['Tables']['items']['Insert'];
 
@@ -11,16 +12,69 @@
 
 	export let listId: string | undefined = undefined;
 
+	type WeightUnit = 'oz' | 'g' | 'kg' | 'lb';
+
 	let name = '';
 	let description = '';
 	let isWorn = false;
 	let isConsumable = false;
 	let weight = '0.00';
+	let weightUnit: WeightUnit = 'oz';
 	let price = '';
 	let link = '';
 	let imageUrl = '';
 	let imageInput: HTMLInputElement;
 	let submitting = false;
+
+	const weightUnits: WeightUnit[] = ['oz', 'g', 'lb', 'kg'];
+
+	function convertWeight(value: number, from: WeightUnit, to: WeightUnit): number {
+		// First convert to grams as base unit
+		let grams = value;
+		switch (from) {
+			case 'oz':
+				grams = value * 28.3495;
+				break;
+			case 'lb':
+				grams = value * 453.592;
+				break;
+			case 'kg':
+				grams = value * 1000;
+				break;
+		}
+
+		// Then convert to target unit
+		switch (to) {
+			case 'oz':
+				return grams / 28.3495;
+			case 'lb':
+				return grams / 453.592;
+			case 'kg':
+				return grams / 1000;
+			default:
+				return grams;
+		}
+	}
+
+	$: {
+		// Format weight to 2 decimal places when input changes
+		if (weight) {
+			const parsed = parseFloat(weight);
+			if (!isNaN(parsed)) {
+				weight = parsed.toFixed(2);
+			}
+		}
+	}
+
+	$: {
+		// Format price to 2 decimal places when input changes
+		if (price) {
+			const parsed = parseFloat(price);
+			if (!isNaN(parsed)) {
+				price = parsed.toFixed(2);
+			}
+		}
+	}
 
 	async function handleSubmit() {
 		if (!name.trim() || submitting) return;
@@ -33,16 +87,23 @@
 				description: description || null,
 				worn: isWorn,
 				consumable: isConsumable,
-				weight: parseFloat(weight) || 0,
-				price: parseFloat(price) || 0,
+				weight: parseFloat(weight) || null,
+				weight_unit: weightUnit,
+				price: parseFloat(price) || null,
 				url: link || null,
-				image_url: imageUrl || null,
-				weight_unit: 'oz'
+				image_url: imageUrl || null
 			};
 
 			const newItem = await itemStore.addItem(itemData, listId);
 
-			if (newItem) {
+			if (newItem && listId) {
+				// Add the item to the list and update the store
+				await listStore.addItemToList(listId, newItem, {
+					worn: isWorn,
+					consumable: isConsumable,
+					quantity: 1
+				});
+
 				dispatch('submit', newItem);
 			}
 		} catch (error) {
@@ -106,6 +167,7 @@
 		<!-- Description -->
 		<div>
 			<label for="description" class="text-sm font-medium text-gray-900">Description</label>
+			<!-- svelte-ignore element_invalid_self_closing_tag -->
 			<textarea
 				id="description"
 				bind:value={description}
@@ -120,10 +182,10 @@
 			<h3 class="text-sm font-medium text-gray-900">Details</h3>
 
 			<!-- Toggle Buttons -->
-			<div class="flex gap-2 my-4">
+			<div class="flex gap-2 mb-4">
 				<button
 					type="button"
-					class="flex items-center justify-center grow gap-2 px-4 py-2 rounded-full border border-primary-100
+					class="flex items-center justify-center grow gap-2 px-4 py-2 rounded-lg border border-primary-100
                         {isWorn ? 'bg-primary-500 text-white ' : 'text-gray-500'}"
 					on:click={() => (isWorn = !isWorn)}
 				>
@@ -133,44 +195,80 @@
 
 				<button
 					type="button"
-					class="flex items-center justify-center grow gap-2 px-4 py-2 rounded-full border border-primary-100
+					class="flex items-center justify-center grow gap-2 px-4 py-2 rounded-lg border border-primary-100
                         {isConsumable ? 'bg-primary-500 text-white' : 'text-gray-500'}"
 					on:click={() => (isConsumable = !isConsumable)}
 				>
-					<Cookie size={20} />
+					<Cookie size={20} weight="fill" />
 					<span>Consumable</span>
 				</button>
 			</div>
 
 			<div class="space-y-2">
 				<!-- Weight Input -->
-				<button
-					class="w-full px-3 py-2 border rounded-lg bg-white text-left flex justify-between items-center"
-					on:click={() => {
-						/* Open weight picker */
-					}}
-				>
-					<span>{weight} oz</span>
-					<span class="text-gray-400">oz</span>
-				</button>
+				<div class="relative">
+					<label for="weight" class="text-sm font-medium text-gray-900">Weight</label>
+					<div class="flex flex-col gap-2">
+						<input
+							type="text"
+							inputmode="decimal"
+							id="weight"
+							bind:value={weight}
+							placeholder="0.00"
+							class="w-full px-3 py-2 border rounded-lg bg-white focus:border-primary-500 focus-visible:border-primary-500 outline-primary-500"
+						/>
+						<!-- Weight Unit Toggle Chips -->
+						<div class="flex gap-2 justify-between items-center">
+							{#each weightUnits as unit}
+								<button
+									type="button"
+									class="flex items-center justify-center grow px-4 py-2 rounded-full border border-primary-100
+                        {weightUnit === unit ? 'bg-primary-500 text-white' : 'text-gray-500'}"
+									on:click={() => {
+										if (weightUnit !== unit && weight) {
+											// Convert the value when changing units
+											const value = parseFloat(weight);
+											if (!isNaN(value)) {
+												weight = convertWeight(value, weightUnit, unit).toFixed(2);
+											}
+										}
+										weightUnit = unit;
+									}}
+								>
+									{unit}
+								</button>
+							{/each}
+						</div>
+					</div>
+				</div>
 
 				<!-- Price Input -->
-				<button
-					class="w-full px-3 py-2 border rounded-lg bg-white text-left flex justify-between items-center"
-					on:click={() => {
-						/* Open price picker */
-					}}
-				>
-					<span>${price || '0.00'}</span>
-					<span class="text-gray-400">$</span>
-				</button>
+				<div class="relative">
+					<label for="price" class="text-sm font-medium text-gray-900">Price</label>
+					<div class="flex gap-2">
+						<div class="flex items-center px-3 text-gray-400">$</div>
+						<input
+							type="text"
+							inputmode="decimal"
+							id="price"
+							bind:value={price}
+							placeholder="0.00"
+							class="w-full px-3 py-2 border rounded-lg bg-white focus:border-primary-500 focus-visible:border-primary-500 outline-primary-500"
+						/>
+					</div>
+				</div>
 
 				<!-- Link Input -->
-				<button
-					class="w-full px-3 py-2 border rounded-lg bg-white text-left flex justify-between items-center"
-				>
-					<span>Link</span>
-				</button>
+				<div class="relative">
+					<label for="link" class="text-sm font-medium text-gray-900">Link</label>
+					<input
+						type="url"
+						id="link"
+						bind:value={link}
+						placeholder="Paste item URL"
+						class="w-full px-3 py-2 border rounded-lg bg-white focus:border-primary-500 focus-visible:border-primary-500 outline-primary-500"
+					/>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -187,6 +285,7 @@
 				class="w-full h-full flex justify-center items-center border border-primary-900 rounded-lg"
 			>
 				{#if submitting}
+					<!-- svelte-ignore element_invalid_self_closing_tag -->
 					<div
 						class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mx-auto"
 					/>

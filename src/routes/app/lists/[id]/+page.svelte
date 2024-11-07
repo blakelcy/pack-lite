@@ -5,14 +5,25 @@
 	import { listStore } from '$lib/stores/listStore';
 	import NewItemForm from '$lib/components/forms/NewItemForm.svelte';
 	import { onMount } from 'svelte';
-	import { CaretCircleLeft, Trash, XCircle } from 'phosphor-svelte';
+	import {
+		CaretCircleLeft,
+		Trash,
+		XCircle,
+		ChartDonut,
+		Link,
+		Package,
+		TShirt,
+		Cookie
+	} from 'phosphor-svelte';
 	import { fly } from 'svelte/transition';
+	import type { ListItem } from '$lib/types/lists';
 
 	export let data: PageData;
 	let isEditingName = false;
 	let showDeleteConfirm = false;
 	let listItems = data.listItems || [];
 	let showNewItemDrawer = false;
+	let showChart = false;
 
 	// Drawer gesture handling
 	let drawerElement: HTMLElement;
@@ -24,6 +35,21 @@
 	// Create a reactive list variable that updates when either data.list or $listStore.list changes
 	$: list = $listStore.list || data.list;
 	$: listItems = data.listItems || [];
+
+	// Update the grouped items type
+	type GroupedItems = {
+		[key: string]: ListItem[];
+	};
+
+	// Group items by category with proper typing
+	$: groupedItems = listItems.reduce<GroupedItems>((acc, item) => {
+		const category = item.category || 'Uncategorized';
+		if (!acc[category]) {
+			acc[category] = [];
+		}
+		acc[category].push(item);
+		return acc;
+	}, {});
 
 	onMount(async () => {
 		await listStore.getList(data.list.id);
@@ -157,15 +183,102 @@
 		<span>Total: {list?.total_weight ?? 0} oz</span>
 	</div>
 
+	<!-- Chart Toggle -->
+	{#if listItems.length > 0}
+		<div class="px-4 py-3 flex justify-center">
+			<button
+				class="bg-primary-500 text-white px-6 py-2 rounded-lg font-medium text-sm
+                       flex items-center gap-2 hover:bg-green-900 transition-colors"
+				on:click={() => (showChart = !showChart)}
+			>
+				<ChartDonut size={20} weight="fill" />
+				View Chart
+			</button>
+		</div>
+	{/if}
+
 	<!-- Main Content -->
-	<main class="flex-1 flex flex-col items-center justify-center px-6 bg-gray-50">
+	<main class="flex-1 flex flex-col bg-gray-50">
 		{#if listItems.length === 0}
 			<div class="text-center text-gray-500">
 				<h2 class="text-xl font-medium mb-2">Start by adding your first item</h2>
 				<p class="text-sm mb-4">You can organize into categories later</p>
 			</div>
 		{:else}
-			<!-- Add your list items display here -->
+			<div class="flex-1 px-4 py-2">
+				{#each Object.entries(groupedItems) as [category, items]}
+					<div class="mb-12">
+						<h2 class="text-2xl font-bold mb-3 px-2">{category}</h2>
+						<div class="grid grid-cols-3 gap-2">
+							<!-- Changed to always be 3 columns with smaller gap -->
+							{#each items as item (item.id)}
+								<div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+									<div class="flex flex-col">
+										<!-- Item Image -->
+										<div class="relative bg-primary-100 w-full aspect-square">
+											{#if item.image_url}
+												<img
+													src={item.image_url}
+													alt={item.name}
+													class="w-full h-full object-cover"
+												/>
+											{:else}
+												<div class="w-full h-full bg-gray-100 flex items-center justify-center">
+													<Package size={32} class="text-gray-400" />
+												</div>
+											{/if}
+											{#if item.worn || item.consumable}
+												<div class="absolute top-1 right-1 flex gap-1">
+													{#if item.worn}
+														<div class="bg-primary-500 text-white rounded-full p-1">
+															<TShirt size={16} weight="fill" />
+														</div>
+													{/if}
+													{#if item.consumable}
+														<div class="bg-primary-500 text-white rounded-full p-1">
+															<Cookie size={16} weight="fill" />
+														</div>
+													{/if}
+												</div>
+											{/if}
+										</div>
+
+										<!-- Item Details - Simplified for mobile -->
+										<div class="flex-1 p-2">
+											<!-- Reduced padding -->
+											<div class="mb-1">
+												<!-- Reduced margin -->
+												<h3 class="font-medium text-gray-900 text-sm truncate">{item.name}</h3>
+											</div>
+
+											<div class="flex justify-between items-start text-xs text-gray-600 mb-1">
+												<div>{item.weight ?? 0} oz</div>
+												<div>${item.price?.toFixed(2) ?? '0.00'}</div>
+											</div>
+
+											<div class="w-full">
+												<!-- Reduced gap -->
+												{#if item.link}
+													<a
+														href={item.link}
+														target="_blank"
+														rel="noopener noreferrer"
+														class="px-2 py-1 text-xs border rounded-lg hover:bg-gray-50
+                                                           flex items-center gap-1"
+													>
+														<Link size={12} />
+														Link
+													</a>
+												{/if}
+											</div>
+										</div>
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/each}
+			</div>
 		{/if}
 	</main>
 
@@ -191,6 +304,8 @@
 	</nav>
 
 	{#if showDeleteConfirm}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
 			on:click|self={() => (showDeleteConfirm = false)}
@@ -218,9 +333,13 @@
 		</div>
 	{/if}
 
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	{#if showNewItemDrawer}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="fixed inset-0 z-50" on:click|self={handleCloseDrawer}>
 			<!-- Semi-transparent overlay -->
+			<!-- svelte-ignore element_invalid_self_closing_tag -->
 			<div
 				class="absolute inset-0 bg-black bg-opacity-50 transition-opacity duration-300"
 				transition:fly={{ duration: 200, y: 0, opacity: 1 }}
@@ -236,6 +355,7 @@
 				on:touchend={handleTouchEnd}
 				on:touchcancel={handleTouchEnd}
 			>
+				<!-- svelte-ignore element_invalid_self_closing_tag -->
 				<div class="h-1 w-12 bg-gray-300 rounded-full mx-auto mt-3 mb-5" />
 
 				<!-- Header -->

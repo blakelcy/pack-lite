@@ -2,15 +2,22 @@
 import { writable } from 'svelte/store';
 import { supabase } from '$lib/supabase';
 import type { PostgrestError } from '@supabase/supabase-js';
+import type { Database } from '$lib/database.types';
 
+// Enhanced Types
+type DBList = Database['public']['Tables']['lists']['Row'];
+type DBItem = Database['public']['Tables']['items']['Row'];
+type DBListItem = Database['public']['Tables']['list_items']['Row'];
 // Types
-interface List {
-	id: string;
-	name: string;
-	total_weight: number;
-	item_count: number;
-	created_at: string;
-	updated_at: string;
+
+interface ListItem extends DBItem {
+	worn: boolean;
+	consumable: boolean;
+	quantity: number;
+	category?: string;
+}
+interface List extends DBList {
+	items?: ListItem[];
 }
 
 interface ListState {
@@ -28,7 +35,7 @@ function createListStore() {
 		lists: [] // Add this
 	});
 
-	return {
+	const store = {
 		subscribe,
 		createNewList: async () => {
 			update((state) => ({ ...state, loading: true, error: null }));
@@ -104,48 +111,149 @@ function createListStore() {
 			return data;
 		},
 
-		updateListName: async (id: string, name: string) => {
+		updateListItem: async (listId: string, itemId: string, updates: Partial<DBListItem>) => {
 			update((state) => ({ ...state, loading: true, error: null }));
 
-			const { data, error } = await supabase
-				.from('lists')
-				.update({ name })
-				.eq('id', id)
-				.select()
-				.single();
+			try {
+				const { error } = await supabase
+					.from('list_items')
+					.update(updates)
+					.eq('list_id', listId)
+					.eq('item_id', itemId);
 
-			if (error) {
-				update((state) => ({ ...state, error, loading: false }));
+				if (error) throw error;
+
+				// Refresh the list to get updated data
+				await this.getList(listId);
+			} catch (error) {
+				update((state) => ({
+					...state,
+					error: error as PostgrestError,
+					loading: false
+				}));
 				throw error;
 			}
-
-			// Update both the single list and the list in the lists array if it exists
-			update((state) => ({
-				...state,
-				list: data,
-				lists: state.lists.map((l) => (l.id === id ? { ...l, name } : l)),
-				error: null,
-				loading: false
-			}));
-
-			return data;
 		},
 
-		getList: async (id: string) => {
+		getList: async function (id: string) {
 			update((state) => ({ ...state, loading: true, error: null }));
 
-			const { data, error } = await supabase.from('lists').select().eq('id', id).single();
+			try {
+				const [listResponse, itemsResponse] = await Promise.all([
+					supabase.from('lists').select().eq('id', id).single(),
+					supabase
+						.from('list_items')
+						.select(
+							`
+                    id,  // Make sure to select list_items.id
+                    item_id,
+                    worn,
+                    consumable,
+                    quantity,
+                    items:items (
+                        *,
+                        categories:categories (
+                            id,
+                            name
+                        )
+                    )
+                `
+						)
+						.eq('list_id', id)
+				]);
 
-			if (error) {
-				update((state) => ({ ...state, error, loading: false }));
+				if (listResponse.error) throw listResponse.error;
+				if (itemsResponse.error) throw itemsResponse.error;
+
+				const transformedItems =
+					itemsResponse.data?.map((listItem) => ({
+						id: listItem.id, // Use list_item.id instead of item.id
+						item_id: listItem.item_id,
+						...listItem.items,
+						worn: listItem.worn || false,
+						consumable: listItem.consumable || false,
+						quantity: listItem.quantity || 1,
+						category: listItem.items?.categories?.name || 'Uncategorized'
+					})) || [];
+
+				const listWithItems = {
+					...listResponse.data,
+					items: transformedItems
+				};
+
+				update((state) => ({
+					...state,
+					list: listWithItems,
+					error: null,
+					loading: false
+				}));
+
+				return listWithItems;
+			} catch (error) {
+				update((state) => ({
+					...state,
+					error: error as PostgrestError,
+					loading: false
+				}));
 				throw error;
 			}
+		},
+		// Add a method to handle new items
+		addItemToList: async function (
+			listId: string,
+			item: DBItem,
+			listItemData: Partial<DBListItem>
+		) {
+			update((state) => ({ ...state, loading: true, error: null }));
 
-			update((state) => ({
-				list: data,
-				error: null,
-				loading: false
-			}));
+			try {
+				// Add the item to list_items
+				const { error: listItemError } = await supabase.from('list_items').insert({
+					list_id: listId,
+					item_id: item.id,
+					worn: listItemData.worn || false,
+					consumable: listItemData.consumable || false,
+					quantity: listItemData.quantity || 1
+				});
+
+				if (listItemError) throw listItemError;
+
+				// Refresh list data
+				await this.getList(listId);
+
+				// Update counts using your database function
+				await supabase.rpc('recalculate_all_list_counts');
+			} catch (error) {
+				update((state) => ({
+					...state,
+					error: error as PostgrestError,
+					loading: false
+				}));
+				throw error;
+			}
+		},
+		removeItemFromList: async (listId: string, itemId: string) => {
+			update((state) => ({ ...state, loading: true, error: null }));
+
+			try {
+				const { error } = await supabase
+					.from('list_items')
+					.delete()
+					.eq('list_id', listId)
+					.eq('item_id', itemId);
+
+				if (error) throw error;
+
+				// Refresh the list to get updated data
+				await this.getList(listId);
+			} catch (error) {
+				update((state) => ({
+					...state,
+					error: error as PostgrestError,
+					loading: false
+				}));
+				throw error;
+			}
 		},
 
 		deleteList: async (id: string) => {
@@ -192,6 +300,7 @@ function createListStore() {
 			});
 		}
 	};
+	return store;
 }
 
 export const listStore = createListStore();
