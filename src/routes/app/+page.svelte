@@ -44,11 +44,13 @@
 
 		return async ({ result }) => {
 			isCreatingList = false;
-			if (result.type === 'success') {
-				const { list } = result.data;
-				// Optionally update the store before navigation
-				listStore.fetchUserLists();
-				goto(`/app/lists/${list.id}`);
+			console.log('Full result:', result); // Let's keep this for debugging
+
+			if (result.type === 'success' && result.data.list?.id) {
+				await goto(`/app/lists/${result.data.list.id}`);
+				listStore.fetchUserLists().catch(console.error);
+			} else {
+				console.error('Invalid list data received:', result);
 			}
 		};
 	}

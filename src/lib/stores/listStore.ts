@@ -44,6 +44,7 @@ interface ListStore extends Readable<ListState> {
 	setActiveList: (listId: string) => Promise<void>;
 	loadListDetails: (listId: string) => Promise<void>;
 	updateListName: (listId: string, newName: string) => Promise<void>;
+	fetchUserLists: () => Promise<void>; // Add this line
 	reset: () => void;
 }
 
@@ -174,6 +175,44 @@ function createListStore(): ListStore {
 		}
 	}
 
+	async function fetchUserLists() {
+		update((state) => ({
+			...state,
+			loading: { ...state.loading, lists: true },
+			error: null
+		}));
+
+		try {
+			const { data: lists, error } = await supabase
+				.from('lists')
+				.select(
+					`
+                id,
+                name,
+                created_at,
+                item_count,
+                total_weight
+            `
+				)
+				.order('created_at', { ascending: false });
+
+			if (error) throw error;
+
+			update((state) => ({
+				...state,
+				lists: new Map(lists.map((list) => [list.id, list])),
+				loading: { ...state.loading, lists: false }
+			}));
+		} catch (error) {
+			console.error('Error fetching lists:', error);
+			update((state) => ({
+				...state,
+				loading: { ...state.loading, lists: false },
+				error: error as PostgrestError
+			}));
+		}
+	}
+
 	async function updateListName(listId: string, newName: string) {
 		update((state) => {
 			const newLists = new Map(state.lists);
@@ -215,6 +254,7 @@ function createListStore(): ListStore {
 		setActiveList,
 		loadListDetails,
 		updateListName,
+		fetchUserLists,
 		reset
 	};
 }
