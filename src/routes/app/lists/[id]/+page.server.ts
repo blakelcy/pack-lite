@@ -1,10 +1,10 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import type { ListItem } from '$lib/types/lists'; // Add this import
+import type { ListItem } from '$lib/types/lists';
 
-// src/routes/app/lists/[id]/+page.server.ts
 export const load = (async ({ params, locals }) => {
 	const { supabase } = locals;
+	console.log('Loading list with ID:', params.id);
 
 	try {
 		// Get the list
@@ -14,10 +14,11 @@ export const load = (async ({ params, locals }) => {
 			.eq('id', params.id)
 			.single();
 
+		console.log('List data:', list);
 		if (listError) throw listError;
 		if (!list) throw error(404, 'List not found');
 
-		// Get the list items with joined items and categories
+		// Initial list items load - match the store's query structure
 		const { data: listItems, error: itemsError } = await supabase
 			.from('list_items')
 			.select(
@@ -27,7 +28,7 @@ export const load = (async ({ params, locals }) => {
                 worn,
                 consumable,
                 quantity,
-                items (
+                items!inner (
                     id,
                     name,
                     description,
@@ -37,7 +38,7 @@ export const load = (async ({ params, locals }) => {
                     image_url,
                     url,
                     created_at,
-                    categories:categories (
+                    categories (
                         id,
                         name
                     )
@@ -46,25 +47,29 @@ export const load = (async ({ params, locals }) => {
 			)
 			.eq('list_id', params.id);
 
+		console.log('List items data:', listItems);
 		if (itemsError) throw itemsError;
 
-		// Transform the data to flatten the item properties
-		const transformedItems = (listItems || []).map((listItem) => ({
-			id: listItem.item_id, // Keep the original item id
-			list_id: listItem.list_id, // Add list_id
-			name: listItem.items.name,
-			description: listItem.items.description,
-			weight: listItem.items.weight,
-			price: listItem.items.price,
-			category: listItem.items?.categories?.name || 'Uncategorized',
-			image_url: listItem.items.image_url,
-			link: listItem.items.url,
-			created_at: listItem.items.created_at,
-			worn: listItem.worn || false,
-			consumable: listItem.consumable || false,
-			quantity: listItem.quantity || 1
-		})) satisfies ListItem[];
+		// Transform the data to match your ListItem type
+		const transformedItems = (listItems || []).map((item) => ({
+			id: item.item_id,
+			list_id: item.list_id,
+			name: item.items.name,
+			description: item.items.description || undefined,
+			weight: item.items.weight || 0,
+			price: item.items.price || undefined,
+			category: item.items.categories?.name || 'Uncategorized',
+			image_url: item.items.image_url || undefined,
+			link: item.items.url || undefined,
+			created_at: item.items.created_at,
+			worn: item.worn || false,
+			consumable: item.consumable || false,
+			quantity: item.quantity || 1
+		})) as ListItem[];
 
+		console.log('Transformed items:', transformedItems);
+
+		// Return the data
 		return {
 			list,
 			listItems: transformedItems

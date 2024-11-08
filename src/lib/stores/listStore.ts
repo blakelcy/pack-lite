@@ -1,306 +1,222 @@
-// src/lib/stores/listStore.ts
-import { writable } from 'svelte/store';
-import { supabase } from '$lib/supabase';
+import { writable, derived, type Readable } from 'svelte/store';
 import type { PostgrestError } from '@supabase/supabase-js';
-import type { Database } from '$lib/database.types';
+import type { GearList, ListItem } from '$lib/types/lists';
+import { supabase } from '$lib/supabase';
 
-// Enhanced Types
-type DBList = Database['public']['Tables']['lists']['Row'];
-type DBItem = Database['public']['Tables']['items']['Row'];
-type DBListItem = Database['public']['Tables']['list_items']['Row'];
-// Types
-
-interface ListItem extends DBItem {
-	worn: boolean;
-	consumable: boolean;
-	quantity: number;
-	category?: string;
-}
-interface List extends DBList {
-	items?: ListItem[];
+// Define the exact shape of the Supabase response
+interface ListItemResponse {
+	item_id: string;
+	list_id: string;
+	worn: boolean | null;
+	consumable: boolean | null;
+	quantity: number | null;
+	items: {
+		id: string;
+		name: string;
+		description: string | null;
+		weight: number | null;
+		price: number | null;
+		category_id: string | null;
+		image_url: string | null;
+		url: string | null;
+		created_at: string;
+		categories: {
+			id: string;
+			name: string;
+		} | null;
+	};
 }
 
 interface ListState {
-	list: List | null;
+	activeListId: string | null;
+	lists: Map<string, GearList>;
+	listItems: Map<string, ListItem[]>;
+	loading: {
+		lists: boolean;
+		items: boolean;
+	};
 	error: PostgrestError | null;
-	loading: boolean;
-	lists: List[];
 }
 
-function createListStore() {
+interface ListStore extends Readable<ListState> {
+	activeList: Readable<GearList | null>;
+	activeListItems: Readable<ListItem[]>;
+	setActiveList: (listId: string) => Promise<void>;
+	loadListDetails: (listId: string) => Promise<void>;
+	updateListName: (listId: string, newName: string) => Promise<void>;
+	reset: () => void;
+}
+
+function createListStore(): ListStore {
 	const { subscribe, set, update } = writable<ListState>({
-		list: null,
-		error: null,
-		loading: false,
-		lists: [] // Add this
+		activeListId: null,
+		lists: new Map(),
+		listItems: new Map(),
+		loading: {
+			lists: false,
+			items: false
+		},
+		error: null
 	});
 
-	const store = {
-		subscribe,
-		createNewList: async () => {
-			update((state) => ({ ...state, loading: true, error: null }));
+	// Fixed derived store definitions
+	const activeList = derived<Readable<ListState>, GearList | null>({ subscribe }, ($state) => {
+		if (!$state.activeListId) return null;
+		const list = $state.lists.get($state.activeListId);
+		return list || null; // Ensure we always return GearList | null
+	});
 
-			// Get the current user's ID
-			const {
-				data: { user }
-			} = await supabase.auth.getUser();
+	const activeListItems = derived<Readable<ListState>, ListItem[]>({ subscribe }, ($state) => {
+		if (!$state.activeListId) return [];
+		return $state.listItems.get($state.activeListId) || [];
+	});
 
-			if (!user) {
-				const error = new Error('User must be authenticated to create a list');
-				update((state) => ({ ...state, error, loading: false }));
-				throw error;
-			}
+	// Define async functions outside return
+	async function setActiveList(listId: string) {
+		update((state) => ({ ...state, activeListId: listId }));
+		await loadListDetails(listId);
+	}
 
-			const { data, error } = await supabase
-				.from('lists')
-				.insert([
-					{
-						name: 'Enter List Name',
-						total_weight: 0,
-						item_count: 0,
-						user_id: user.id // Include the user_id
-					}
-				])
-				.select()
-				.single();
+	async function loadListDetails(listId: string) {
+		update((state) => ({
+			...state,
+			loading: { ...state.loading, items: true },
+			error: null
+		}));
 
-			if (error) {
-				update((state) => ({ ...state, error, loading: false }));
-				throw error;
-			}
-
-			update((state) => ({
-				list: data,
-				error: null,
-				loading: false
-			}));
-
-			return data;
-		},
-		fetchUserLists: async () => {
-			update((state) => ({ ...state, loading: true, error: null }));
-
-			const {
-				data: { user }
-			} = await supabase.auth.getUser();
-
-			if (!user) {
-				const error = new Error('User must be authenticated to fetch lists');
-				update((state) => ({ ...state, error, loading: false }));
-				throw error;
-			}
-
-			const { data, error } = await supabase
-				.from('lists')
-				.select('*')
-				.eq('user_id', user.id)
-				.order('created_at', { ascending: false });
-
-			if (error) {
-				update((state) => ({ ...state, error, loading: false }));
-				throw error;
-			}
-
-			update((state) => ({
-				...state,
-				lists: data,
-				error: null,
-				loading: false
-			}));
-
-			return data;
-		},
-
-		updateListItem: async (listId: string, itemId: string, updates: Partial<DBListItem>) => {
-			update((state) => ({ ...state, loading: true, error: null }));
-
-			try {
-				const { error } = await supabase
+		try {
+			const [listResponse, itemsResponse] = await Promise.all([
+				supabase.from('lists').select('*').eq('id', listId).single(),
+				supabase
 					.from('list_items')
-					.update(updates)
-					.eq('list_id', listId)
-					.eq('item_id', itemId);
-
-				if (error) throw error;
-
-				// Refresh the list to get updated data
-				await this.getList(listId);
-			} catch (error) {
-				update((state) => ({
-					...state,
-					error: error as PostgrestError,
-					loading: false
-				}));
-				throw error;
-			}
-		},
-
-		getList: async function (id: string) {
-			update((state) => ({ ...state, loading: true, error: null }));
-
-			try {
-				const [listResponse, itemsResponse] = await Promise.all([
-					supabase.from('lists').select().eq('id', id).single(),
-					supabase
-						.from('list_items')
-						.select(
-							`
-                    id,  // Make sure to select list_items.id
+					.select(
+						`
                     item_id,
+                    list_id,
                     worn,
                     consumable,
                     quantity,
-                    items:items (
-                        *,
-                        categories:categories (
+                    items!inner (
+                        id,
+                        name,
+                        description,
+                        weight,
+                        price,
+                        category_id,
+                        image_url,
+                        url,
+                        created_at,
+                        categories (
                             id,
                             name
                         )
                     )
                 `
-						)
-						.eq('list_id', id)
-				]);
+					)
+					.eq('list_id', listId)
+			]);
 
-				if (listResponse.error) throw listResponse.error;
-				if (itemsResponse.error) throw itemsResponse.error;
+			console.log('List Response:', listResponse);
+			console.log('Items Response:', itemsResponse);
 
-				const transformedItems =
-					itemsResponse.data?.map((listItem) => ({
-						id: listItem.id, // Use list_item.id instead of item.id
-						item_id: listItem.item_id,
-						...listItem.items,
-						worn: listItem.worn || false,
-						consumable: listItem.consumable || false,
-						quantity: listItem.quantity || 1,
-						category: listItem.items?.categories?.name || 'Uncategorized'
-					})) || [];
+			if (listResponse.error) throw listResponse.error;
+			if (itemsResponse.error) throw itemsResponse.error;
 
-				const listWithItems = {
-					...listResponse.data,
-					items: transformedItems
-				};
+			const responseData = itemsResponse.data as unknown as ListItemResponse[];
 
-				update((state) => ({
-					...state,
-					list: listWithItems,
-					error: null,
-					loading: false
-				}));
+			console.log('Response Data:', responseData);
 
-				return listWithItems;
-			} catch (error) {
-				update((state) => ({
-					...state,
-					error: error as PostgrestError,
-					loading: false
-				}));
-				throw error;
-			}
-		},
-		// Add a method to handle new items
-		addItemToList: async function (
-			listId: string,
-			item: DBItem,
-			listItemData: Partial<DBListItem>
-		) {
-			update((state) => ({ ...state, loading: true, error: null }));
+			const transformedItems: ListItem[] = responseData.map((listItem) => ({
+				id: listItem.item_id,
+				list_id: listItem.list_id,
+				name: listItem.items.name,
+				description: listItem.items.description || undefined,
+				weight: listItem.items.weight || 0,
+				price: listItem.items.price || undefined,
+				category: listItem.items.categories?.name || 'Uncategorized',
+				image_url: listItem.items.image_url || undefined,
+				link: listItem.items.url || undefined,
+				created_at: listItem.items.created_at,
+				worn: listItem.worn || false,
+				consumable: listItem.consumable || false,
+				quantity: listItem.quantity || 1
+			}));
 
-			try {
-				// Add the item to list_items
-				const { error: listItemError } = await supabase.from('list_items').insert({
-					list_id: listId,
-					item_id: item.id,
-					worn: listItemData.worn || false,
-					consumable: listItemData.consumable || false,
-					quantity: listItemData.quantity || 1
+			console.log('Transformed Items:', transformedItems);
+
+			update((state) => {
+				const newLists = new Map(state.lists);
+				const newListItems = new Map(state.listItems);
+
+				newLists.set(listId, listResponse.data);
+				newListItems.set(listId, transformedItems);
+
+				console.log('Updated Store State:', {
+					lists: newLists,
+					listItems: newListItems
 				});
 
-				if (listItemError) throw listItemError;
-
-				// Refresh list data
-				await this.getList(listId);
-
-				// Update counts using your database function
-				await supabase.rpc('recalculate_all_list_counts');
-			} catch (error) {
-				update((state) => ({
+				return {
 					...state,
-					error: error as PostgrestError,
-					loading: false
-				}));
-				throw error;
-			}
-		},
-		removeItemFromList: async (listId: string, itemId: string) => {
-			update((state) => ({ ...state, loading: true, error: null }));
-
-			try {
-				const { error } = await supabase
-					.from('list_items')
-					.delete()
-					.eq('list_id', listId)
-					.eq('item_id', itemId);
-
-				if (error) throw error;
-
-				// Refresh the list to get updated data
-				await this.getList(listId);
-			} catch (error) {
-				update((state) => ({
-					...state,
-					error: error as PostgrestError,
-					loading: false
-				}));
-				throw error;
-			}
-		},
-
-		deleteList: async (id: string) => {
-			update((state) => ({ ...state, loading: true, error: null }));
-
-			try {
-				// Delete the list
-				const { error } = await supabase.from('lists').delete().eq('id', id);
-
-				if (error) throw error;
-
-				// Get updated lists after deletion
-				const {
-					data: { user }
-				} = await supabase.auth.getUser();
-
-				if (!user) throw new Error('User must be authenticated');
-
-				const { data: updatedLists, error: listsError } = await supabase
-					.from('lists')
-					.select('*')
-					.eq('user_id', user.id)
-					.order('created_at', { ascending: false });
-
-				if (listsError) throw listsError;
-
-				update((state) => ({
-					list: null,
-					lists: updatedLists || [],
-					error: null,
-					loading: false
-				}));
-			} catch (error) {
-				update((state) => ({ ...state, error, loading: false }));
-				throw error;
-			}
-		},
-		reset: () => {
-			set({
-				list: null,
-				error: null,
-				loading: false,
-				lists: [] // Make sure to reset lists as well
+					lists: newLists,
+					listItems: newListItems,
+					loading: { ...state.loading, items: false },
+					error: null
+				};
 			});
+		} catch (error) {
+			console.error('Error loading list details:', error);
+			update((state) => ({
+				...state,
+				loading: { ...state.loading, items: false },
+				error: error as PostgrestError
+			}));
 		}
+	}
+
+	async function updateListName(listId: string, newName: string) {
+		update((state) => {
+			const newLists = new Map(state.lists);
+			const list = newLists.get(listId);
+			if (list) {
+				newLists.set(listId, { ...list, name: newName });
+			}
+			return { ...state, lists: newLists };
+		});
+
+		try {
+			const { error } = await supabase.from('lists').update({ name: newName }).eq('id', listId);
+
+			if (error) throw error;
+		} catch (error) {
+			console.error('Error updating list name:', error);
+			await loadListDetails(listId);
+		}
+	}
+
+	function reset() {
+		set({
+			activeListId: null,
+			lists: new Map(),
+			listItems: new Map(),
+			loading: {
+				lists: false,
+				items: false
+			},
+			error: null
+		});
+	}
+
+	// Return store methods and subscriptions
+	return {
+		subscribe,
+		activeList,
+		activeListItems,
+		setActiveList,
+		loadListDetails,
+		updateListName,
+		reset
 	};
-	return store;
 }
 
 export const listStore = createListStore();
