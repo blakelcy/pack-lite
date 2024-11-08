@@ -44,7 +44,8 @@ interface ListStore extends Readable<ListState> {
 	setActiveList: (listId: string) => Promise<void>;
 	loadListDetails: (listId: string) => Promise<void>;
 	updateListName: (listId: string, newName: string) => Promise<void>;
-	fetchUserLists: () => Promise<void>; // Add this line
+	fetchUserLists: () => Promise<void>;
+	deleteList: (listId: string) => Promise<void>;
 	reset: () => void;
 }
 
@@ -233,6 +234,45 @@ function createListStore(): ListStore {
 		}
 	}
 
+	async function deleteList(listId: string) {
+		update((state) => ({
+			...state,
+			loading: { ...state.loading, lists: true },
+			error: null
+		}));
+
+		try {
+			const { error } = await supabase.from('lists').delete().eq('id', listId);
+
+			if (error) throw error;
+
+			// Update local state
+			update((state) => {
+				const newLists = new Map(state.lists);
+				const newListItems = new Map(state.listItems);
+
+				newLists.delete(listId);
+				newListItems.delete(listId);
+
+				return {
+					...state,
+					lists: newLists,
+					listItems: newListItems,
+					activeListId: state.activeListId === listId ? null : state.activeListId,
+					loading: { ...state.loading, lists: false }
+				};
+			});
+		} catch (error) {
+			console.error('Error deleting list:', error);
+			update((state) => ({
+				...state,
+				loading: { ...state.loading, lists: false },
+				error: error as PostgrestError
+			}));
+			throw error; // Re-throw to handle in the component
+		}
+	}
+
 	function reset() {
 		set({
 			activeListId: null,
@@ -255,6 +295,7 @@ function createListStore(): ListStore {
 		loadListDetails,
 		updateListName,
 		fetchUserLists,
+		deleteList,
 		reset
 	};
 }
