@@ -29,7 +29,7 @@
 	let showNewItemDrawer = false;
 	let showChart = false;
 	let nameUpdatePending = false;
-
+	let nameError: string | null = null;
 	let originalName: string;
 
 	// Drawer gesture handling
@@ -69,41 +69,6 @@
 			}
 		}
 	});
-
-	function handleNameUpdate() {
-		if (!list || !isEditingName) return;
-
-		const newName = list.name;
-		const form = new FormData();
-		form.append('name', newName);
-
-		// Store original name for potential rollback
-		originalName = data.list.name;
-
-		// Optimistically update the UI
-		listStore.updateListData(list.id, { name: newName });
-		isEditingName = false;
-
-		// Submit the form
-		fetch(`?/updateName`, {
-			method: 'POST',
-			body: form
-		})
-			.then(async (response) => {
-				const result = await response.json();
-				if (result.type === 'success') {
-					toast.show('Updated List Name Successfully!', 'success');
-				} else {
-					throw new Error(result.error || 'Failed to update list name');
-				}
-			})
-			.catch((error) => {
-				console.error('Error updating list name:', error);
-				// Revert optimistic update
-				listStore.updateListData(list.id, { name: originalName });
-				toast.show('Failed to update list name', 'error');
-			});
-	}
 
 	async function handleBack() {
 		// Reset the store before navigation
@@ -228,31 +193,69 @@
 
 			<div class="flex-1 mx-4">
 				{#if isEditingName}
-					<form on:submit|preventDefault={() => handleNameUpdate()}>
+					<form
+						action="?/updateName"
+						method="POST"
+						use:enhance={() => {
+							const newName = list.name.trim();
+							originalName = data.list.name;
+
+							// Optimistically update the UI
+							listStore.updateListData(list.id, { name: newName });
+
+							return async ({ result }) => {
+								if (result.type === 'success') {
+									isEditingName = false;
+									nameError = null;
+									toast.show('List name updated', 'success');
+								} else {
+									// Revert optimistic update
+									listStore.updateListData(list.id, { name: originalName });
+									nameError = 'Unable to update list name';
+									isEditingName = true;
+								}
+							};
+						}}
+						class="relative"
+					>
 						<input
 							type="text"
 							name="name"
-							class="w-full px-2 py-1 text-lg font-medium text-center border-b border-gray-300
-                       focus:outline-none focus:border-primary-500"
+							class="w-full px-2 py-1 text-lg font-medium text-center border-b
+                       {nameError ? 'border-red-500' : 'border-gray-300'}
+                       focus:outline-none focus:border-primary-500 transition-colors"
 							bind:value={list.name}
-							on:blur={() => handleNameUpdate()}
-							on:keydown={(e) => e.key === 'Enter' && handleNameUpdate()}
+							on:input={() => (nameError = null)}
+							on:blur={(e) => !nameError && e.currentTarget.form?.requestSubmit()}
+							on:keydown={(e) => {
+								if (e.key === 'Enter') {
+									e.preventDefault();
+									e.currentTarget.form?.requestSubmit();
+								} else if (e.key === 'Escape') {
+									list.name = originalName;
+									isEditingName = false;
+									nameError = null;
+								}
+							}}
 							disabled={nameUpdatePending}
 							autofocus
 						/>
+						{#if nameError}
+							<div
+								class="absolute -bottom-8 left-0 right-0 flex items-center justify-center
+                           text-sm text-red-600 bg-white/90 py-1"
+							>
+								<span>{nameError}</span>
+							</div>
+						{/if}
 					</form>
-					<!-- <input
-						type="text"
-						class="w-full px-2 py-1 text-lg font-medium text-center border-b border-gray-300 focus:outline-none focus:border-primary-500"
-						value={list.name}
-						on:blur={(e) => handleNameUpdate(e.currentTarget.value)}
-						on:keydown={(e) => e.key === 'Enter' && handleNameUpdate(e.currentTarget.value)}
-						autofocus
-					/> -->
 				{:else}
 					<button
 						class="w-full text-lg font-medium text-center hover:text-primary-600"
-						on:click={() => (isEditingName = true)}
+						on:click={() => {
+							isEditingName = true;
+							nameError = null;
+						}}
 					>
 						{list.name}
 					</button>
