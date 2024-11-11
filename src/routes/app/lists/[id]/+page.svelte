@@ -1,7 +1,7 @@
-<!-- src/routes/app/lists/[id]/+page.svelte -->
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
-	import type { PageData } from './$types';
+	import type { PageData, ActionData } from './$types';
 	import { listStore } from '$lib/stores/listStore';
 	import NewItemForm from '$lib/components/forms/NewItemForm.svelte';
 	import { onMount } from 'svelte';
@@ -19,10 +19,14 @@
 	import type { ListItem } from '$lib/types/lists';
 
 	export let data: PageData;
+	// svelte-ignore export_let_unused
+	export let form: ActionData;
+
 	let isEditingName = false;
 	let showDeleteConfirm = false;
 	let showNewItemDrawer = false;
 	let showChart = false;
+	let nameUpdatePending = false;
 
 	// Drawer gesture handling
 	let drawerElement: HTMLElement;
@@ -62,15 +66,38 @@
 		}
 	});
 
-	async function handleNameUpdate(newName: string) {
-		if (!list?.id) return;
+	function handleNameUpdate(newName: string) {
+		const form = new FormData();
+		form.append('name', newName);
 
-		try {
-			await listStore.updateListName(list.id, newName);
-			isEditingName = false;
-		} catch (error) {
-			console.error('Error updating list name:', error);
+		// Optimistically update the UI
+		if (list) {
+			list = { ...list, name: newName };
 		}
+
+		// Submit the form
+		fetch(`?/updateName`, {
+			method: 'POST',
+			body: form
+		})
+			.then(async (response) => {
+				const result = await response.json();
+				if (!result.success) {
+					// Revert optimistic update if failed
+					if (list && data.list) {
+						list = { ...list, name: data.list.name };
+					}
+				}
+				isEditingName = false;
+			})
+			.catch((error) => {
+				console.error('Error updating list name:', error);
+				// Revert optimistic update
+				if (list && data.list) {
+					list = { ...list, name: data.list.name };
+				}
+				isEditingName = false;
+			});
 	}
 
 	async function handleBack() {
@@ -122,13 +149,52 @@
 		showNewItemDrawer = true;
 	}
 
-	async function handleAddItem(event: CustomEvent) {
-		const newItem = event.detail;
+	function handleAddItem(event: CustomEvent) {
+		const itemData = event.detail;
+
+		// Create a hidden form and submit it
+		const form = new FormData();
+		// Add all item data to form
+		Object.entries(itemData).forEach(([key, value]) => {
+			form.append(key, value.toString());
+		});
+
+		return {
+			action: '?/addItem',
+			data: form,
+			callback: async ({ result }) => {
+				if (result.type === 'success') {
+					showNewItemDrawer = false;
+					// Refresh the list data after successful addition
+					await listStore.loadListDetails(list.id);
+				} else {
+					console.error('Failed to add item:', result);
+					// Could add error notification here
+				}
+			}
+		};
+	}
+
+	async function updateListItem(listItemId: string, updates: Partial<ListItem>) {
+		const form = new FormData();
+		form.append('listItemId', listItemId);
+
+		Object.entries(updates).forEach(([key, value]) => {
+			form.append(key, value.toString());
+		});
+
 		try {
-			showNewItemDrawer = false;
-			await listStore.getList(list.id);
+			const response = await fetch('?/updateListItem', {
+				method: 'POST',
+				body: form
+			});
+
+			const result = await response.json();
+			if (!result.success) {
+				console.error('Failed to update item:', result.error);
+			}
 		} catch (error) {
-			console.error('Error adding item:', error);
+			console.error('Error updating item:', error);
 		}
 	}
 
@@ -139,9 +205,21 @@
 	async function handleDelete() {
 		if (!list) return;
 
+		const form = new FormData();
+		form.append('listId', list.id);
+
 		try {
-			await listStore.deleteList(list.id);
-			await goto('/app');
+			const response = await fetch('?/removeItem', {
+				method: 'POST',
+				body: form
+			});
+
+			const result = await response.json();
+			if (result.success) {
+				await goto('/app');
+			} else {
+				console.error('Failed to delete list:', result.error);
+			}
 		} catch (error) {
 			console.error('Error deleting list:', error);
 		}
@@ -168,14 +246,38 @@
 
 			<div class="flex-1 mx-4">
 				{#if isEditingName}
-					<input
+					<form
+						method="POST"
+						action="?/updateName"
+						use:enhance={() => {
+							nameUpdatePending = true;
+							return async ({ result }) => {
+								nameUpdatePending = false;
+								if (result.type === 'success') {
+									isEditingName = false;
+								}
+							};
+						}}
+					>
+						<input
+							type="text"
+							name="name"
+							class="w-full px-2 py-1 text-lg font-medium text-center border-b border-gray-300 focus:outline-none focus:border-primary-500"
+							value={list.name}
+							disabled={nameUpdatePending}
+							on:blur={(e) => e.currentTarget.form?.requestSubmit()}
+							on:keydown={(e) => e.key === 'Enter' && e.currentTarget.form?.requestSubmit()}
+							autofocus
+						/>
+					</form>
+					<!-- <input
 						type="text"
 						class="w-full px-2 py-1 text-lg font-medium text-center border-b border-gray-300 focus:outline-none focus:border-primary-500"
 						value={list.name}
 						on:blur={(e) => handleNameUpdate(e.currentTarget.value)}
 						on:keydown={(e) => e.key === 'Enter' && handleNameUpdate(e.currentTarget.value)}
 						autofocus
-					/>
+					/> -->
 				{:else}
 					<button
 						class="w-full text-lg font-medium text-center hover:text-primary-600"
@@ -327,8 +429,6 @@
 		</nav>
 
 		{#if showDeleteConfirm}
-			<!-- svelte-ignore a11y_click_events_have_key_events -->
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
 				on:click|self={() => (showDeleteConfirm = false)}
@@ -338,20 +438,38 @@
 					<p class="text-gray-600 mb-6">
 						Are you sure you want to delete "{list?.name}"? This action cannot be undone.
 					</p>
-					<div class="flex justify-end space-x-4">
-						<button
-							class="px-4 py-2 text-gray-600 hover:text-gray-800"
-							on:click={() => (showDeleteConfirm = false)}
-						>
-							Cancel
-						</button>
-						<button
-							class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-							on:click={handleDelete}
-						>
-							Delete
-						</button>
-					</div>
+					<form
+						method="POST"
+						action="?/deleteList"
+						use:enhance={() => {
+							return async ({ result }) => {
+								if (result.type === 'success') {
+									await goto('/app');
+								} else {
+									// Handle error case
+									console.error('Failed to delete list:', result);
+									// Could add toast notification here
+								}
+							};
+						}}
+					>
+						<input type="hidden" name="listId" value={list.id} />
+						<div class="flex justify-end space-x-4">
+							<button
+								type="button"
+								class="px-4 py-2 text-gray-600 hover:text-gray-800"
+								on:click={() => (showDeleteConfirm = false)}
+							>
+								Cancel
+							</button>
+							<button
+								type="submit"
+								class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+							>
+								Delete
+							</button>
+						</div>
+					</form>
 				</div>
 			</div>
 		{/if}

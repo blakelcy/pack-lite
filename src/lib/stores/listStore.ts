@@ -43,9 +43,8 @@ interface ListStore extends Readable<ListState> {
 	activeListItems: Readable<ListItem[]>;
 	setActiveList: (listId: string) => Promise<void>;
 	loadListDetails: (listId: string) => Promise<void>;
-	updateListName: (listId: string, newName: string) => Promise<void>;
 	fetchUserLists: () => Promise<void>;
-	deleteList: (listId: string) => Promise<void>;
+	updateListData: (listId: string, data: { name?: string; items?: ListItem[] }) => void;
 	reset: () => void;
 }
 
@@ -61,11 +60,10 @@ function createListStore(): ListStore {
 		error: null
 	});
 
-	// Fixed derived store definitions
 	const activeList = derived<Readable<ListState>, GearList | null>({ subscribe }, ($state) => {
 		if (!$state.activeListId) return null;
 		const list = $state.lists.get($state.activeListId);
-		return list || null; // Ensure we always return GearList | null
+		return list || null;
 	});
 
 	const activeListItems = derived<Readable<ListState>, ListItem[]>({ subscribe }, ($state) => {
@@ -214,63 +212,26 @@ function createListStore(): ListStore {
 		}
 	}
 
-	async function updateListName(listId: string, newName: string) {
+	function updateListData(listId: string, data: { name?: string; items?: ListItem[] }) {
 		update((state) => {
 			const newLists = new Map(state.lists);
-			const list = newLists.get(listId);
-			if (list) {
-				newLists.set(listId, { ...list, name: newName });
+			const newListItems = new Map(state.listItems);
+
+			if (data.name && newLists.has(listId)) {
+				const list = newLists.get(listId)!;
+				newLists.set(listId, { ...list, name: data.name });
 			}
-			return { ...state, lists: newLists };
-		});
 
-		try {
-			const { error } = await supabase.from('lists').update({ name: newName }).eq('id', listId);
+			if (data.items) {
+				newListItems.set(listId, data.items);
+			}
 
-			if (error) throw error;
-		} catch (error) {
-			console.error('Error updating list name:', error);
-			await loadListDetails(listId);
-		}
-	}
-
-	async function deleteList(listId: string) {
-		update((state) => ({
-			...state,
-			loading: { ...state.loading, lists: true },
-			error: null
-		}));
-
-		try {
-			const { error } = await supabase.from('lists').delete().eq('id', listId);
-
-			if (error) throw error;
-
-			// Update local state
-			update((state) => {
-				const newLists = new Map(state.lists);
-				const newListItems = new Map(state.listItems);
-
-				newLists.delete(listId);
-				newListItems.delete(listId);
-
-				return {
-					...state,
-					lists: newLists,
-					listItems: newListItems,
-					activeListId: state.activeListId === listId ? null : state.activeListId,
-					loading: { ...state.loading, lists: false }
-				};
-			});
-		} catch (error) {
-			console.error('Error deleting list:', error);
-			update((state) => ({
+			return {
 				...state,
-				loading: { ...state.loading, lists: false },
-				error: error as PostgrestError
-			}));
-			throw error; // Re-throw to handle in the component
-		}
+				lists: newLists,
+				listItems: newListItems
+			};
+		});
 	}
 
 	function reset() {
@@ -278,10 +239,7 @@ function createListStore(): ListStore {
 			activeListId: null,
 			lists: new Map(),
 			listItems: new Map(),
-			loading: {
-				lists: false,
-				items: false
-			},
+			loading: { lists: false, items: false },
 			error: null
 		});
 	}
@@ -293,9 +251,8 @@ function createListStore(): ListStore {
 		activeListItems,
 		setActiveList,
 		loadListDetails,
-		updateListName,
 		fetchUserLists,
-		deleteList,
+		updateListData,
 		reset
 	};
 }
