@@ -17,6 +17,8 @@
 	} from 'phosphor-svelte';
 	import { fly } from 'svelte/transition';
 	import type { ListItem } from '$lib/types/lists';
+	import Toast from '$lib/components/helpers/Toast.svelte';
+	import { toast } from '$lib/stores/toastStore';
 
 	export let data: PageData;
 	// svelte-ignore export_let_unused
@@ -27,6 +29,8 @@
 	let showNewItemDrawer = false;
 	let showChart = false;
 	let nameUpdatePending = false;
+
+	let originalName: string;
 
 	// Drawer gesture handling
 	let drawerElement: HTMLElement;
@@ -66,14 +70,19 @@
 		}
 	});
 
-	function handleNameUpdate(newName: string) {
+	function handleNameUpdate() {
+		if (!list || !isEditingName) return;
+
+		const newName = list.name;
 		const form = new FormData();
 		form.append('name', newName);
 
+		// Store original name for potential rollback
+		originalName = data.list.name;
+
 		// Optimistically update the UI
-		if (list) {
-			list = { ...list, name: newName };
-		}
+		listStore.updateListData(list.id, { name: newName });
+		isEditingName = false;
 
 		// Submit the form
 		fetch(`?/updateName`, {
@@ -82,21 +91,17 @@
 		})
 			.then(async (response) => {
 				const result = await response.json();
-				if (!result.success) {
-					// Revert optimistic update if failed
-					if (list && data.list) {
-						list = { ...list, name: data.list.name };
-					}
+				if (result.type === 'success') {
+					toast.show('Updated List Name Successfully!', 'success');
+				} else {
+					throw new Error(result.error || 'Failed to update list name');
 				}
-				isEditingName = false;
 			})
 			.catch((error) => {
 				console.error('Error updating list name:', error);
 				// Revert optimistic update
-				if (list && data.list) {
-					list = { ...list, name: data.list.name };
-				}
-				isEditingName = false;
+				listStore.updateListData(list.id, { name: originalName });
+				toast.show('Failed to update list name', 'error');
 			});
 	}
 
@@ -201,29 +206,6 @@
 	function handleMyGear() {
 		goto('/app/gear');
 	}
-
-	async function handleDelete() {
-		if (!list) return;
-
-		const form = new FormData();
-		form.append('listId', list.id);
-
-		try {
-			const response = await fetch('?/removeItem', {
-				method: 'POST',
-				body: form
-			});
-
-			const result = await response.json();
-			if (result.success) {
-				await goto('/app');
-			} else {
-				console.error('Failed to delete list:', result.error);
-			}
-		} catch (error) {
-			console.error('Error deleting list:', error);
-		}
-	}
 </script>
 
 <div class="min-h-screen bg-white flex flex-col">
@@ -246,27 +228,16 @@
 
 			<div class="flex-1 mx-4">
 				{#if isEditingName}
-					<form
-						method="POST"
-						action="?/updateName"
-						use:enhance={() => {
-							nameUpdatePending = true;
-							return async ({ result }) => {
-								nameUpdatePending = false;
-								if (result.type === 'success') {
-									isEditingName = false;
-								}
-							};
-						}}
-					>
+					<form on:submit|preventDefault={() => handleNameUpdate()}>
 						<input
 							type="text"
 							name="name"
-							class="w-full px-2 py-1 text-lg font-medium text-center border-b border-gray-300 focus:outline-none focus:border-primary-500"
-							value={list.name}
+							class="w-full px-2 py-1 text-lg font-medium text-center border-b border-gray-300
+                       focus:outline-none focus:border-primary-500"
+							bind:value={list.name}
+							on:blur={() => handleNameUpdate()}
+							on:keydown={(e) => e.key === 'Enter' && handleNameUpdate()}
 							disabled={nameUpdatePending}
-							on:blur={(e) => e.currentTarget.form?.requestSubmit()}
-							on:keydown={(e) => e.key === 'Enter' && e.currentTarget.form?.requestSubmit()}
 							autofocus
 						/>
 					</form>
