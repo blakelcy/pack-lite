@@ -111,21 +111,59 @@
 		showNewItemDrawer = true;
 	}
 
-	async function handleAddItem(event: CustomEvent<FormData>) {
-		const formData = event.detail;
+	async function handleAddItem(
+		event: CustomEvent<{
+			formData: FormData;
+			action: string;
+			callback: () => void;
+		}>
+	) {
+		console.log('handleAddItem called with:', event.detail);
+		const { formData, action, callback } = event.detail;
 
-		return {
-			action: '?/addItem',
-			data: formData,
-			callback: async ({ result }) => {
+		// Add use:enhance to the form submission
+		const submit = enhance(() => {
+			console.log('enhance callback starting');
+			return async ({ result }) => {
+				console.log('Form submission result:', result);
 				if (result.type === 'success') {
 					showNewItemDrawer = false;
-					await listStore.loadListDetails(list.id);
+					if (list?.id) {
+						await listStore.loadListDetails(list.id);
+					}
+					callback();
 				} else {
 					console.error('Failed to add item:', result);
+					// Reset submitting state on error
+					callback();
 				}
-			}
-		};
+			};
+		});
+
+		// Create a form and submit it programmatically
+		console.log('Creating form for submission');
+		const form = document.createElement('form');
+		form.method = 'POST';
+		form.action = action;
+
+		// Add the enhance function to the form
+		submit(form);
+
+		// Add form data
+		for (const [key, value] of formData.entries()) {
+			console.log('Adding form field:', key, value);
+			const input = document.createElement('input');
+			input.type = 'hidden';
+			input.name = key;
+			input.value = value.toString();
+			form.appendChild(input);
+		}
+
+		// Submit the form
+		console.log('Submitting form');
+		document.body.appendChild(form);
+		form.submit();
+		document.body.removeChild(form);
 	}
 
 	function handleMyGear() {
@@ -442,7 +480,15 @@
 
 					<!-- Form -->
 					<div class="max-h-[85vh] overflow-y-auto">
-						<NewItemForm listId={list.id} on:submit={handleAddItem} />
+						<NewItemForm
+							listId={list.id}
+							on:success={() => {
+								showNewItemDrawer = false;
+								if (list?.id) {
+									listStore.loadListDetails(list.id);
+								}
+							}}
+						/>
 					</div>
 				</div>
 			</div>

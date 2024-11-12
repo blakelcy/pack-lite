@@ -5,6 +5,7 @@
 	import { itemStore } from '$lib/stores/itemStore';
 	import type { Database } from '$lib/database.types';
 	import { listStore } from '$lib/stores/listStore';
+	import { enhance } from '$app/forms';
 
 	type ItemInsert = Database['public']['Tables']['items']['Insert'];
 
@@ -76,30 +77,6 @@
 		}
 	}
 
-	async function handleSubmit() {
-		if (!name.trim() || submitting) return;
-		submitting = true;
-
-		try {
-			const formData = new FormData();
-			formData.append('name', name);
-			formData.append('description', description || '');
-			formData.append('worn', isWorn.toString());
-			formData.append('consumable', isConsumable.toString());
-			formData.append('weight', weight);
-			formData.append('weight_unit', weightUnit);
-			formData.append('price', price || '0');
-			formData.append('url', link || '');
-			formData.append('image_url', imageUrl || '');
-
-			dispatch('submit', formData);
-		} catch (error) {
-			console.error('Error preparing item data:', error);
-		} finally {
-			submitting = false;
-		}
-	}
-
 	function handleImageSelect(e: Event) {
 		const input = e.target as HTMLInputElement;
 		if (input.files && input.files[0]) {
@@ -110,9 +87,37 @@
 			reader.readAsDataURL(input.files[0]);
 		}
 	}
+
+	function resetForm() {
+		name = '';
+		description = '';
+		isWorn = false;
+		isConsumable = false;
+		weight = '0.00';
+		price = '';
+		link = '';
+		imageUrl = '';
+	}
 </script>
 
-<div class="flex flex-col">
+<form
+	method="POST"
+	action="?/addItem"
+	use:enhance={() => {
+		submitting = true;
+		return async ({ result }) => {
+			console.log('Form submission result:', result);
+			if (result.type === 'success') {
+				resetForm();
+				dispatch('success');
+			} else {
+				console.error('Failed to add item:', result);
+			}
+			submitting = false;
+		};
+	}}
+	class="flex flex-col"
+>
 	<!-- Image Upload -->
 	<div class="bg-gray-200 aspect-square max-h-96 relative">
 		{#if imageUrl}
@@ -148,6 +153,7 @@
 				required
 				class="w-full px-3 py-2 border rounded-lg bg-white focus:border-primary-500 focus-visible:border-primary-500 outline-primary-500"
 				placeholder="Name"
+				on:input={() => console.log('Name input changed:', name)}
 			/>
 		</div>
 
@@ -259,20 +265,32 @@
 			</div>
 		</div>
 	</div>
-
-	<!-- Add Button -->
+	<!-- Hidden inputs for form data -->
+	<input type="hidden" name="name" value={name} />
+	<input type="hidden" name="description" value={description} />
+	<input type="hidden" name="worn" value={isWorn.toString()} />
+	<input type="hidden" name="consumable" value={isConsumable.toString()} />
+	<input type="hidden" name="weight" value={weight} />
+	<input type="hidden" name="weight_unit" value={weightUnit} />
+	<input type="hidden" name="price" value={price} />
+	<input type="hidden" name="url" value={link} />
+	<input type="hidden" name="image_url" value={imageUrl} />
+	{#if listId}
+		<input type="hidden" name="listId" value={listId} />
+	{/if}
+	<!-- Submit Button -->
 	<div class="px-2 mb-4 w-full h-14">
 		<button
-			type="button"
-			class="w-full h-full p-1 text-center bg-primary-500 text-white font-medium border border-primary-900 rounded-xl hover:bg-primary-800 disabled:opacity-50 disabled:cursor-not-allowed"
-			on:click={handleSubmit}
+			type="submit"
+			class="w-full h-full p-1 text-center bg-primary-500 text-white font-medium
+                   border border-primary-900 rounded-xl hover:bg-primary-800
+                   disabled:opacity-50 disabled:cursor-not-allowed"
 			disabled={submitting}
 		>
 			<div
 				class="w-full h-full flex justify-center items-center border border-primary-900 rounded-lg"
 			>
 				{#if submitting}
-					<!-- svelte-ignore element_invalid_self_closing_tag -->
 					<div
 						class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mx-auto"
 					/>
@@ -282,4 +300,4 @@
 			</div>
 		</button>
 	</div>
-</div>
+</form>

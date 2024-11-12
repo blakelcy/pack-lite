@@ -150,64 +150,53 @@ export const actions = {
 		}
 	},
 
-	// Add item to list
 	addItem: async ({ request, locals, params }) => {
+		console.log('Server addItem action started');
 		const { session, supabase } = locals;
 		const { id: listId } = params;
 
 		if (!session) {
+			console.log('No session found');
 			return fail(401, { error: 'Unauthorized' });
 		}
 
-		const formData = await request.formData();
-
-		// Safely get form values with proper type conversion
-		const itemData = {
-			name: formData.get('name')?.toString(),
-			description: formData.get('description')?.toString() || null,
-			weight: parseFloat(formData.get('weight')?.toString() || '0'),
-			weight_unit: formData.get('weight_unit')?.toString() || 'oz',
-			price: parseFloat(formData.get('price')?.toString() || '0'),
-			image_url: formData.get('image_url')?.toString() || null,
-			url: formData.get('url')?.toString() || null,
-			worn: formData.get('worn') === 'true',
-			consumable: formData.get('consumable') === 'true'
-		};
-
-		if (!itemData.name) {
-			return fail(400, { error: 'Item name is required' });
-		}
-
 		try {
-			// First create the item
-			const { data: item, error: itemError } = await supabase
-				.from('items')
-				.insert({
-					...itemData,
-					user_id: session.user.id
-				})
-				.select('*') // Select all fields
-				.single();
+			const formData = await request.formData();
+			console.log('Received form data:', Object.fromEntries(formData));
+			const itemData = {
+				name: formData.get('name')?.toString(),
+				description: formData.get('description')?.toString() || null,
+				weight: parseFloat(formData.get('weight')?.toString() || '0'),
+				weight_unit: formData.get('weight_unit')?.toString() || 'oz',
+				price: parseFloat(formData.get('price')?.toString() || '0'),
+				image_url: formData.get('image_url')?.toString() || null,
+				url: formData.get('url')?.toString() || null
+			};
 
-			if (itemError) throw itemError;
+			const worn = formData.get('worn') === 'true';
+			const consumable = formData.get('consumable') === 'true';
 
-			// Then add it to the list
-			const { error: listItemError } = await supabase.from('list_items').insert({
-				list_id: listId,
-				item_id: item.id,
-				quantity: 1,
-				worn: itemData.worn,
-				consumable: itemData.consumable
+			if (!itemData.name) {
+				return fail(400, { error: 'Item name is required' });
+			}
+
+			// Call our new function
+			const { data, error } = await supabase.rpc('add_item_to_list', {
+				p_list_id: listId,
+				p_user_id: session.user.id,
+				p_item_data: itemData,
+				p_worn: worn,
+				p_consumable: consumable
 			});
 
-			if (listItemError) throw listItemError;
-
-			// Trigger recount of list items
-			await supabase.rpc('recalculate_all_list_counts');
+			if (error) {
+				console.error('Error in add_item_to_list:', error);
+				throw error;
+			}
 
 			return {
 				success: true,
-				data: { item, worn: itemData.worn, consumable: itemData.consumable }
+				data: { item: data }
 			};
 		} catch (err) {
 			console.error('Error adding item:', err);
