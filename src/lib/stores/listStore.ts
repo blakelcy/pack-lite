@@ -1,6 +1,6 @@
 import { writable, derived, type Readable } from 'svelte/store';
 import type { PostgrestError } from '@supabase/supabase-js';
-import type { GearList, ListItem } from '$lib/types/lists';
+import type { GearList, Item, ListItem } from '$lib/types/lists';
 import { supabase } from '$lib/supabase';
 
 // Define the exact shape of the Supabase response
@@ -38,12 +38,19 @@ interface ListState {
 	error: PostgrestError | null;
 }
 
+interface ListItemInsert {
+	worn: boolean;
+	consumable: boolean;
+	quantity: number;
+}
+
 interface ListStore extends Readable<ListState> {
 	activeList: Readable<GearList | null>;
 	activeListItems: Readable<ListItem[]>;
 	setActiveList: (listId: string) => Promise<void>;
 	loadListDetails: (listId: string) => Promise<void>;
 	fetchUserLists: () => Promise<void>;
+	addItemToList: (listId: string, item: Item, listItemData: ListItemInsert) => Promise<void>;
 	updateListData: (listId: string, data: { name?: string; items?: ListItem[] }) => void;
 	reset: () => void;
 }
@@ -212,6 +219,40 @@ function createListStore(): ListStore {
 		}
 	}
 
+	async function addItemToList(listId: string, item: Item, listItemData: ListItemInsert) {
+		update((state) => ({
+			...state,
+			loading: { ...state.loading, items: true },
+			error: null
+		}));
+
+		try {
+			// Create the list_items association
+			const { error: listItemError } = await supabase.from('list_items').insert({
+				list_id: listId,
+				item_id: item.id,
+				worn: listItemData.worn,
+				consumable: listItemData.consumable,
+				quantity: listItemData.quantity
+			});
+
+			if (listItemError) throw listItemError;
+
+			// Trigger a recount of list items
+			await supabase.rpc('recalculate_list_counts', { list_id: listId });
+
+			// Reload the list details to get updated counts and items
+			await loadListDetails(listId);
+		} catch (error) {
+			console.error('Error adding item to list:', error);
+			update((state) => ({
+				...state,
+				loading: { ...state.loading, items: false },
+				error: error as PostgrestError
+			}));
+		}
+	}
+
 	function updateListData(listId: string, data: { name?: string; items?: ListItem[] }) {
 		update((state) => {
 			const newLists = new Map(state.lists);
@@ -252,6 +293,7 @@ function createListStore(): ListStore {
 		setActiveList,
 		loadListDetails,
 		fetchUserLists,
+		addItemToList,
 		updateListData,
 		reset
 	};

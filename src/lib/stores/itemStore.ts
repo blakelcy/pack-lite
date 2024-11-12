@@ -46,6 +46,44 @@ function createItemStore() {
 				}));
 			}
 		},
+		async addItem(itemData: Omit<ItemInsert, 'user_id'>, listId?: string): Promise<Item | null> {
+			update((store) => ({ ...store, loading: true, error: null }));
+
+			try {
+				const { data: userData } = await supabase.auth.getUser();
+				if (!userData.user) throw new Error('User not authenticated');
+
+				// Insert the item
+				const { data: item, error: itemError } = await supabase
+					.from('items')
+					.insert({
+						...itemData,
+						user_id: userData.user.id
+					})
+					.select()
+					.single();
+
+				if (itemError) throw itemError;
+				if (!item) throw new Error('Failed to create item');
+
+				// Update the store
+				update((store) => ({
+					...store,
+					items: [item, ...store.items],
+					loading: false
+				}));
+
+				return item;
+			} catch (error) {
+				console.error('Error adding item:', error);
+				update((store) => ({
+					...store,
+					loading: false,
+					error: error instanceof Error ? error.message : 'An error occurred'
+				}));
+				return null;
+			}
+		},
 		updateItems(newItems: Item[]) {
 			update((store) => ({
 				...store,
