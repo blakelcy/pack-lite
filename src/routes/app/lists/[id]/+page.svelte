@@ -17,7 +17,6 @@
 	} from 'phosphor-svelte';
 	import { fly } from 'svelte/transition';
 	import type { ListItem } from '$lib/types/lists';
-	import Toast from '$lib/components/helpers/Toast.svelte';
 	import { toast } from '$lib/stores/toastStore';
 
 	export let data: PageData;
@@ -145,29 +144,6 @@
 		};
 	}
 
-	async function updateListItem(listItemId: string, updates: Partial<ListItem>) {
-		const form = new FormData();
-		form.append('listItemId', listItemId);
-
-		Object.entries(updates).forEach(([key, value]) => {
-			form.append(key, value.toString());
-		});
-
-		try {
-			const response = await fetch('?/updateListItem', {
-				method: 'POST',
-				body: form
-			});
-
-			const result = await response.json();
-			if (!result.success) {
-				console.error('Failed to update item:', result.error);
-			}
-		} catch (error) {
-			console.error('Error updating item:', error);
-		}
-	}
-
 	function handleMyGear() {
 		goto('/app/gear');
 	}
@@ -207,7 +183,7 @@
 								if (result.type === 'success') {
 									isEditingName = false;
 									nameError = null;
-									toast.show('List name updated', 'success');
+									toast.show('List name updated', 'info');
 								} else {
 									// Revert optimistic update
 									listStore.updateListData(list.id, { name: originalName });

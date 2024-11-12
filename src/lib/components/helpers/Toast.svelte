@@ -1,30 +1,13 @@
 <script lang="ts">
 	import { fade } from 'svelte/transition';
 	import { toast } from '$lib/stores/toastStore';
-	import { CheckCircle, XCircle, Info } from 'phosphor-svelte';
+	import { CheckCircle, Info } from 'phosphor-svelte';
 
-	$: icon = $toast?.type === 'success' ? CheckCircle : $toast?.type === 'error' ? XCircle : Info;
+	$: icon = $toast?.type === 'success' ? CheckCircle : Info;
 
-	$: backgroundColor =
-		$toast?.type === 'success'
-			? 'bg-green-50'
-			: $toast?.type === 'error'
-				? 'bg-red-50'
-				: 'bg-blue-50';
-
-	$: textColor =
-		$toast?.type === 'success'
-			? 'text-green-800'
-			: $toast?.type === 'error'
-				? 'text-red-800'
-				: 'text-blue-600';
-
-	$: borderColor =
-		$toast?.type === 'success'
-			? 'border-green-200'
-			: $toast?.type === 'error'
-				? 'border-red-200'
-				: 'border-blue-200';
+	$: backgroundColor = $toast?.type === 'success' ? 'bg-primary-500' : 'bg-blue-50';
+	$: textColor = $toast?.type === 'success' ? 'text-white' : 'text-blue-600';
+	$: borderColor = $toast?.type === 'success' ? 'border-primary-900' : 'border-blue-200';
 </script>
 
 {#if $toast}
