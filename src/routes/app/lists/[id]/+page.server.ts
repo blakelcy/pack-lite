@@ -160,14 +160,16 @@ export const actions = {
 		}
 
 		const formData = await request.formData();
+
+		// Safely get form values with proper type conversion
 		const itemData = {
 			name: formData.get('name')?.toString(),
-			description: formData.get('description')?.toString(),
+			description: formData.get('description')?.toString() || null,
 			weight: parseFloat(formData.get('weight')?.toString() || '0'),
+			weight_unit: formData.get('weight_unit')?.toString() || 'oz',
 			price: parseFloat(formData.get('price')?.toString() || '0'),
-			category_id: formData.get('category_id')?.toString(),
-			image_url: formData.get('image_url')?.toString(),
-			url: formData.get('url')?.toString(),
+			image_url: formData.get('image_url')?.toString() || null,
+			url: formData.get('url')?.toString() || null,
 			worn: formData.get('worn') === 'true',
 			consumable: formData.get('consumable') === 'true'
 		};
@@ -182,10 +184,9 @@ export const actions = {
 				.from('items')
 				.insert({
 					...itemData,
-					user_id: session.user.id,
-					weight_unit: 'oz' // default to oz
+					user_id: session.user.id
 				})
-				.select()
+				.select('*') // Select all fields
 				.single();
 
 			if (itemError) throw itemError;
@@ -206,7 +207,7 @@ export const actions = {
 
 			return {
 				success: true,
-				item: item
+				data: { item, worn: itemData.worn, consumable: itemData.consumable }
 			};
 		} catch (err) {
 			console.error('Error adding item:', err);

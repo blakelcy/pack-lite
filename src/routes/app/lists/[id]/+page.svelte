@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import type { PageData, ActionData } from './$types';
-	import { listStore } from '$lib/stores/listStore';
+	import { listStore, type GroupedItems, type ListItemWithDetails } from '$lib/stores/listStore';
 	import NewItemForm from '$lib/components/forms/NewItemForm.svelte';
 	import { onMount } from 'svelte';
 	import {
@@ -16,11 +16,9 @@
 		Cookie
 	} from 'phosphor-svelte';
 	import { fly } from 'svelte/transition';
-	import type { ListItem } from '$lib/types/lists';
 	import { toast } from '$lib/stores/toastStore';
 
 	export let data: PageData;
-	// svelte-ignore export_let_unused
 	export let form: ActionData;
 
 	let isEditingName = false;
@@ -43,14 +41,9 @@
 	$: listItems = $listStore.activeListItems || data.listItems || [];
 	$: loading = $listStore?.loading?.items || false;
 
-	// Update the grouped items type
-	type GroupedItems = {
-		[key: string]: ListItem[];
-	};
-
 	// Safe grouping with null check and default empty array
 	$: groupedItems = (listItems || []).reduce<GroupedItems>((acc, item) => {
-		const category = item?.category || 'Uncategorized';
+		const category = item.items?.categories?.name || 'Uncategorized';
 		if (!acc[category]) {
 			acc[category] = [];
 		}
@@ -118,27 +111,18 @@
 		showNewItemDrawer = true;
 	}
 
-	function handleAddItem(event: CustomEvent) {
-		const itemData = event.detail;
-
-		// Create a hidden form and submit it
-		const form = new FormData();
-		// Add all item data to form
-		Object.entries(itemData).forEach(([key, value]) => {
-			form.append(key, value.toString());
-		});
+	async function handleAddItem(event: CustomEvent<FormData>) {
+		const formData = event.detail;
 
 		return {
 			action: '?/addItem',
-			data: form,
+			data: formData,
 			callback: async ({ result }) => {
 				if (result.type === 'success') {
 					showNewItemDrawer = false;
-					// Refresh the list data after successful addition
 					await listStore.loadListDetails(list.id);
 				} else {
 					console.error('Failed to add item:', result);
-					// Could add error notification here
 				}
 			}
 		};
@@ -286,15 +270,14 @@
 							<h2 class="text-2xl font-bold mb-3 px-2">{category}</h2>
 							<div class="grid grid-cols-3 gap-2">
 								{#each items as item (`${item.list_id}-${item.id}`)}
-									<!-- Item card content -->
 									<div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
 										<div class="flex flex-col">
 											<!-- Item Image -->
 											<div class="relative bg-primary-100 w-full aspect-square">
-												{#if item.image_url}
+												{#if item.items?.image_url}
 													<img
-														src={item.image_url}
-														alt={item.name}
+														src={item.items.image_url}
+														alt={item.items.name}
 														class="w-full h-full object-cover"
 													/>
 												{:else}
@@ -302,6 +285,8 @@
 														<Package size={32} class="text-gray-400" />
 													</div>
 												{/if}
+
+												<!-- Item badges -->
 												{#if item.worn || item.consumable}
 													<div class="absolute top-1 right-1 flex gap-1">
 														{#if item.worn}
@@ -318,34 +303,32 @@
 												{/if}
 											</div>
 
-											<!-- Item Details - Simplified for mobile -->
+											<!-- Item Details -->
 											<div class="flex-1 p-2">
-												<!-- Reduced padding -->
 												<div class="mb-1">
-													<!-- Reduced margin -->
-													<h3 class="font-medium text-gray-900 text-sm truncate">{item.name}</h3>
+													<h3 class="font-medium text-gray-900 text-sm truncate">
+														{item.items?.name}
+													</h3>
 												</div>
 
 												<div class="flex justify-between items-start text-xs text-gray-600 mb-1">
-													<div>{item.weight ?? 0} oz</div>
-													<div>${item.price?.toFixed(2) ?? '0.00'}</div>
+													<div>{item.items?.weight ?? 0} {item.items?.weight_unit ?? 'oz'}</div>
+													<div>${(item.items?.price ?? 0).toFixed(2)}</div>
 												</div>
 
-												<div class="w-full">
-													<!-- Reduced gap -->
-													{#if item.link}
+												{#if item.items?.url}
+													<div class="w-full">
 														<a
-															href={item.link}
+															href={item.items.url}
 															target="_blank"
 															rel="noopener noreferrer"
-															class="px-2 py-1 text-xs border rounded-lg hover:bg-gray-50
-                                                           flex items-center gap-1"
+															class="px-2 py-1 text-xs border rounded-lg hover:bg-gray-50 flex items-center gap-1"
 														>
 															<Link size={12} />
 															Link
 														</a>
-													{/if}
-												</div>
+													</div>
+												{/if}
 											</div>
 										</div>
 									</div>

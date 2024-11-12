@@ -78,36 +78,23 @@
 
 	async function handleSubmit() {
 		if (!name.trim() || submitting) return;
-
 		submitting = true;
 
 		try {
-			const itemData: Omit<ItemInsert, 'user_id'> = {
-				name,
-				description: description || null,
-				worn: isWorn,
-				consumable: isConsumable,
-				weight: parseFloat(weight) || null,
-				weight_unit: weightUnit,
-				price: parseFloat(price) || null,
-				url: link || null,
-				image_url: imageUrl || null
-			};
+			const formData = new FormData();
+			formData.append('name', name);
+			formData.append('description', description || '');
+			formData.append('worn', isWorn.toString());
+			formData.append('consumable', isConsumable.toString());
+			formData.append('weight', weight);
+			formData.append('weight_unit', weightUnit);
+			formData.append('price', price || '0');
+			formData.append('url', link || '');
+			formData.append('image_url', imageUrl || '');
 
-			const newItem = await itemStore.addItem(itemData, listId);
-
-			if (newItem && listId) {
-				// Add the item to the list and update the store
-				await listStore.addItemToList(listId, newItem, {
-					worn: isWorn,
-					consumable: isConsumable,
-					quantity: 1
-				});
-
-				dispatch('submit', newItem);
-			}
+			dispatch('submit', formData);
 		} catch (error) {
-			console.error('Error adding item:', error);
+			console.error('Error preparing item data:', error);
 		} finally {
 			submitting = false;
 		}

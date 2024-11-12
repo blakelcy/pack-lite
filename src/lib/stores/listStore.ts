@@ -2,30 +2,51 @@ import { writable, derived, type Readable } from 'svelte/store';
 import type { PostgrestError } from '@supabase/supabase-js';
 import type { GearList, Item, ListItem } from '$lib/types/lists';
 import { supabase } from '$lib/supabase';
+import type { Database } from '$lib/database.types';
+
+// Define base types from Database
+type DBItem = Database['public']['Tables']['items']['Row'];
+type DBList = Database['public']['Tables']['lists']['Row'];
+type DBListItem = Database['public']['Tables']['list_items']['Row'];
+type DBCategory = Database['public']['Tables']['categories']['Row'];
 
 // Define the exact shape of the Supabase response
-interface ListItemResponse {
-	item_id: string;
-	list_id: string;
-	worn: boolean | null;
-	consumable: boolean | null;
-	quantity: number | null;
-	items: {
-		id: string;
-		name: string;
-		description: string | null;
-		weight: number | null;
-		price: number | null;
-		category_id: string | null;
-		image_url: string | null;
-		url: string | null;
-		created_at: string;
-		categories: {
-			id: string;
-			name: string;
-		} | null;
-	};
-}
+// interface ListItemResponse {
+// 	item_id: string;
+// 	list_id: string;
+// 	worn: boolean | null;
+// 	consumable: boolean | null;
+// 	quantity: number | null;
+// 	items: {
+// 		id: string;
+// 		name: string;
+// 		description: string | null;
+// 		weight: number | null;
+// 		price: number | null;
+// 		category_id: string | null;
+// 		image_url: string | null;
+// 		url: string | null;
+// 		created_at: string;
+// 		categories: {
+// 			id: string;
+// 			name: string;
+// 		} | null;
+// 	};
+// }
+
+// Export the ListItem type that includes nested data
+export type ListItemWithDetails = DBListItem & {
+	items:
+		| (DBItem & {
+				categories?: DBCategory | null;
+		  })
+		| null;
+};
+
+// Export the grouped items type
+export type GroupedItems = {
+	[key: string]: ListItemWithDetails[];
+};
 
 interface ListState {
 	activeListId: string | null;
@@ -45,13 +66,13 @@ interface ListItemInsert {
 }
 
 interface ListStore extends Readable<ListState> {
-	activeList: Readable<GearList | null>;
-	activeListItems: Readable<ListItem[]>;
+	activeList: Readable<DBList | null>;
+	activeListItems: Readable<ListItemWithDetails[]>;
 	setActiveList: (listId: string) => Promise<void>;
 	loadListDetails: (listId: string) => Promise<void>;
 	fetchUserLists: () => Promise<void>;
-	addItemToList: (listId: string, item: Item, listItemData: ListItemInsert) => Promise<void>;
-	updateListData: (listId: string, data: { name?: string; items?: ListItem[] }) => void;
+	addItemToList: (listId: string, item: DBItem, listItemData: ListItemInsert) => Promise<void>;
+	updateListData: (listId: string, data: { name?: string; items?: ListItemWithDetails[] }) => void;
 	reset: () => void;
 }
 
@@ -129,39 +150,14 @@ function createListStore(): ListStore {
 			if (listResponse.error) throw listResponse.error;
 			if (itemsResponse.error) throw itemsResponse.error;
 
-			const responseData = itemsResponse.data as unknown as ListItemResponse[];
-
-			console.log('Response Data:', responseData);
-
-			const transformedItems: ListItem[] = responseData.map((listItem) => ({
-				id: listItem.item_id,
-				list_id: listItem.list_id,
-				name: listItem.items.name,
-				description: listItem.items.description || undefined,
-				weight: listItem.items.weight || 0,
-				price: listItem.items.price || undefined,
-				category: listItem.items.categories?.name || 'Uncategorized',
-				image_url: listItem.items.image_url || undefined,
-				link: listItem.items.url || undefined,
-				created_at: listItem.items.created_at,
-				worn: listItem.worn || false,
-				consumable: listItem.consumable || false,
-				quantity: listItem.quantity || 1
-			}));
-
-			console.log('Transformed Items:', transformedItems);
+			const listItems = itemsResponse.data as unknown as ListItemWithDetails[];
 
 			update((state) => {
 				const newLists = new Map(state.lists);
 				const newListItems = new Map(state.listItems);
 
 				newLists.set(listId, listResponse.data);
-				newListItems.set(listId, transformedItems);
-
-				console.log('Updated Store State:', {
-					lists: newLists,
-					listItems: newListItems
-				});
+				newListItems.set(listId, listItems);
 
 				return {
 					...state,
