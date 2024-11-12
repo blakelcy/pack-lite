@@ -2,7 +2,12 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import type { PageData, ActionData } from './$types';
-	import { listStore, type GroupedItems, type ListItemWithDetails } from '$lib/stores/listStore';
+	import {
+		listStore,
+		activeListItems,
+		type GroupedItems,
+		type ListItemWithDetails
+	} from '$lib/stores/listStore';
 	import NewItemForm from '$lib/components/forms/NewItemForm.svelte';
 	import { onMount } from 'svelte';
 	import {
@@ -38,11 +43,17 @@
 
 	// Use server-loaded data as initial values
 	$: list = $listStore.activeList || data.list;
-	$: listItems = $listStore.activeListItems || data.listItems || [];
+	$: listItems = $activeListItems; // Use the derived store directly
 	$: loading = $listStore?.loading?.items || false;
-
+	$: {
+		console.log('Store state changed:', $listStore);
+		console.log('Active list items:', $listStore.activeListItems);
+		console.log('List items:', listItems);
+	}
 	// Safe grouping with null check and default empty array
+
 	$: groupedItems = (listItems || []).reduce<GroupedItems>((acc, item) => {
+		console.log('Processing item for grouping:', item);
 		const category = item.items?.categories?.name || 'Uncategorized';
 		if (!acc[category]) {
 			acc[category] = [];
@@ -55,7 +66,9 @@
 		console.log('Component mounting with data:', data);
 		if (data.list?.id) {
 			try {
+				console.log('Setting active list:', data.list.id);
 				await listStore.setActiveList(data.list.id);
+				console.log('Active list set, store state:', $listStore);
 			} catch (error) {
 				console.error('Error setting active list:', error);
 			}
@@ -296,18 +309,18 @@
 						class="animate-spin h-8 w-8 border-2 border-primary-500 border-t-transparent rounded-full"
 					/>
 				</div>
-			{:else if !listItems.length}
+			{:else if !Array.isArray(listItems) || listItems.length === 0}
 				<div class="text-center text-gray-500 py-8">
 					<h2 class="text-xl font-medium mb-2">Start by adding your first item</h2>
 					<p class="text-sm mb-4">You can organize into categories later</p>
 				</div>
 			{:else}
 				<div class="flex-1 px-4 py-2">
-					{#each Object.entries(groupedItems) as [category, items]}
+					{#each Object.entries(groupedItems) as [category, items] (category)}
 						<div class="mb-12">
 							<h2 class="text-2xl font-bold mb-3 px-2">{category}</h2>
 							<div class="grid grid-cols-3 gap-2">
-								{#each items as item (`${item.list_id}-${item.id}`)}
+								{#each items as item (item.id)}
 									<div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
 										<div class="flex flex-col">
 											<!-- Item Image -->
@@ -482,10 +495,12 @@
 					<div class="max-h-[85vh] overflow-y-auto">
 						<NewItemForm
 							listId={list.id}
-							on:success={() => {
-								showNewItemDrawer = false;
+							on:success={async () => {
 								if (list?.id) {
-									listStore.loadListDetails(list.id);
+									console.log('Loading list details after item add');
+									await listStore.loadListDetails(list.id);
+									console.log('Finished loading list details');
+									showNewItemDrawer = false;
 								}
 							}}
 						/>

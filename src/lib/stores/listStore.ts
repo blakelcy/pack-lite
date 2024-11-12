@@ -11,28 +11,31 @@ type DBListItem = Database['public']['Tables']['list_items']['Row'];
 type DBCategory = Database['public']['Tables']['categories']['Row'];
 
 // Define the exact shape of the Supabase response
-// interface ListItemResponse {
-// 	item_id: string;
-// 	list_id: string;
-// 	worn: boolean | null;
-// 	consumable: boolean | null;
-// 	quantity: number | null;
-// 	items: {
-// 		id: string;
-// 		name: string;
-// 		description: string | null;
-// 		weight: number | null;
-// 		price: number | null;
-// 		category_id: string | null;
-// 		image_url: string | null;
-// 		url: string | null;
-// 		created_at: string;
-// 		categories: {
-// 			id: string;
-// 			name: string;
-// 		} | null;
-// 	};
-// }
+type ListItemResponse = {
+	id: string;
+	quantity: number | null;
+	worn: boolean | null;
+	consumable: boolean | null;
+	item_id: string;
+	list_id: string;
+	created_at: string | null;
+	updated_at: string | null;
+	items: {
+		id: string;
+		name: string;
+		description: string | null;
+		weight: number | null;
+		weight_unit: string | null;
+		price: number | null;
+		image_url: string | null;
+		url: string | null;
+		category_id: string | null;
+		categories?: {
+			id: string;
+			name: string;
+		} | null;
+	} | null;
+};
 
 // Export the ListItem type that includes nested data
 export type ListItemWithDetails = DBListItem & {
@@ -43,6 +46,8 @@ export type ListItemWithDetails = DBListItem & {
 		| null;
 };
 
+export type ActiveListItems = Readable<ListItemWithDetails[]>;
+
 // Export the grouped items type
 export type GroupedItems = {
 	[key: string]: ListItemWithDetails[];
@@ -50,8 +55,8 @@ export type GroupedItems = {
 
 interface ListState {
 	activeListId: string | null;
-	lists: Map<string, GearList>;
-	listItems: Map<string, ListItem[]>;
+	lists: Map<string, DBList>;
+	listItems: Map<string, ListItemWithDetails[]>;
 	loading: {
 		lists: boolean;
 		items: boolean;
@@ -72,7 +77,13 @@ interface ListStore extends Readable<ListState> {
 	loadListDetails: (listId: string) => Promise<void>;
 	fetchUserLists: () => Promise<void>;
 	addItemToList: (listId: string, item: DBItem, listItemData: ListItemInsert) => Promise<void>;
-	updateListData: (listId: string, data: { name?: string; items?: ListItemWithDetails[] }) => void;
+	updateListData: (
+		listId: string,
+		data: {
+			name?: string;
+			items?: ListItemWithDetails[];
+		}
+	) => void;
 	reset: () => void;
 }
 
@@ -88,16 +99,22 @@ function createListStore(): ListStore {
 		error: null
 	});
 
-	const activeList = derived<Readable<ListState>, GearList | null>({ subscribe }, ($state) => {
+	const activeList = derived<Readable<ListState>, DBList | null>({ subscribe }, ($state) => {
 		if (!$state.activeListId) return null;
 		const list = $state.lists.get($state.activeListId);
 		return list || null;
 	});
 
-	const activeListItems = derived<Readable<ListState>, ListItem[]>({ subscribe }, ($state) => {
-		if (!$state.activeListId) return [];
-		return $state.listItems.get($state.activeListId) || [];
-	});
+	const activeListItems = derived<Readable<ListState>, ListItemWithDetails[]>(
+		{ subscribe },
+		($state) => {
+			console.log('Deriving activeListItems, state:', $state);
+			if (!$state?.activeListId) return [];
+			const items = $state.listItems.get($state.activeListId);
+			console.log('Found items:', items);
+			return items || [];
+		}
+	);
 
 	// Define async functions outside return
 	async function setActiveList(listId: string) {
@@ -106,6 +123,7 @@ function createListStore(): ListStore {
 	}
 
 	async function loadListDetails(listId: string) {
+		console.log('Loading list details for:', listId);
 		update((state) => ({
 			...state,
 			loading: { ...state.loading, items: true },
@@ -119,21 +137,24 @@ function createListStore(): ListStore {
 					.from('list_items')
 					.select(
 						`
-                    item_id,
-                    list_id,
+                    id,
+                    quantity,
                     worn,
                     consumable,
-                    quantity,
-                    items!inner (
+                    item_id,
+                    list_id,
+                    created_at,
+                    updated_at,
+                    items:item_id (
                         id,
                         name,
                         description,
                         weight,
+                        weight_unit,
                         price,
-                        category_id,
                         image_url,
                         url,
-                        created_at,
+                        category_id,
                         categories (
                             id,
                             name
@@ -142,22 +163,33 @@ function createListStore(): ListStore {
                 `
 					)
 					.eq('list_id', listId)
+					.order('created_at', { ascending: false })
 			]);
-
-			console.log('List Response:', listResponse);
-			console.log('Items Response:', itemsResponse);
 
 			if (listResponse.error) throw listResponse.error;
 			if (itemsResponse.error) throw itemsResponse.error;
 
-			const listItems = itemsResponse.data as unknown as ListItemWithDetails[];
+			console.log('List items response:', itemsResponse.data);
+
+			// Transform the response data to match our types
+			const transformedItems = (itemsResponse.data as ListItemResponse[]).map((item) => ({
+				...item,
+				items: item.items
+					? {
+							...item.items,
+							categories: item.items.categories || null
+						}
+					: null
+			})) as ListItemWithDetails[];
+
+			console.log('Transformed items:', transformedItems);
 
 			update((state) => {
 				const newLists = new Map(state.lists);
 				const newListItems = new Map(state.listItems);
 
 				newLists.set(listId, listResponse.data);
-				newListItems.set(listId, listItems);
+				newListItems.set(listId, transformedItems);
 
 				return {
 					...state,
@@ -215,7 +247,7 @@ function createListStore(): ListStore {
 		}
 	}
 
-	async function addItemToList(listId: string, item: Item, listItemData: ListItemInsert) {
+	async function addItemToList(listId: string, item: DBItem, listItemData: ListItemInsert) {
 		update((state) => ({
 			...state,
 			loading: { ...state.loading, items: true },
@@ -249,7 +281,13 @@ function createListStore(): ListStore {
 		}
 	}
 
-	function updateListData(listId: string, data: { name?: string; items?: ListItem[] }) {
+	function updateListData(
+		listId: string,
+		data: {
+			name?: string;
+			items?: ListItemWithDetails[];
+		}
+	) {
 		update((state) => {
 			const newLists = new Map(state.lists);
 			const newListItems = new Map(state.listItems);
@@ -296,3 +334,7 @@ function createListStore(): ListStore {
 }
 
 export const listStore = createListStore();
+export const activeListItems = derived(listStore, ($store) => {
+	if (!$store.activeListId) return [];
+	return $store.listItems.get($store.activeListId) || [];
+});
