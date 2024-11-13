@@ -18,7 +18,8 @@
 		Link,
 		Package,
 		TShirt,
-		Cookie
+		Cookie,
+		PencilSimple
 	} from 'phosphor-svelte';
 	import { fly } from 'svelte/transition';
 	import { toast } from '$lib/stores/toastStore';
@@ -190,7 +191,7 @@
 								}
 							};
 						}}
-						class="relative"
+						class="relative flex items-center justify-center"
 					>
 						<input
 							type="text"
@@ -214,6 +215,7 @@
 							disabled={nameUpdatePending}
 							autofocus
 						/>
+
 						{#if nameError}
 							<div
 								class="absolute -bottom-8 left-0 right-0 flex items-center justify-center
@@ -225,13 +227,20 @@
 					</form>
 				{:else}
 					<button
-						class="w-full text-lg font-medium text-center hover:text-primary-600"
+						class="w-full text-lg font-medium text-center hover:text-primary-600 relative group"
 						on:click={() => {
 							isEditingName = true;
 							nameError = null;
 						}}
 					>
-						{list.name}
+						<span class="relative"
+							>{list.name}<PencilSimple
+								size={16}
+								weight="regular"
+								class="absolute top-1/2 -translate-y-1/2 -left-6 text-gray-400 
+                       opacity-1 group-hover:opacity-100 transition-opacity duration-200"
+							/></span
+						>
 					</button>
 				{/if}
 			</div>
