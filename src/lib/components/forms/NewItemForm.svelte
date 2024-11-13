@@ -69,25 +69,56 @@
 		}
 	}
 
-	$: {
-		// Format weight to 2 decimal places when input changes
-		if (weight) {
-			const parsed = parseFloat(weight);
-			if (!isNaN(parsed)) {
-				weight = parsed.toFixed(2);
-			}
+	// Helper function to format number to 2 decimal places
+	function formatDecimal(value: string): string {
+		const parsed = parseFloat(value.replace(/[^\d.-]/g, ''));
+		if (isNaN(parsed)) return '0.00';
+		return parsed.toFixed(2);
+	}
+
+	// Handle weight input with better validation
+	function handleWeightInput(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const value = input.value;
+
+		// Allow for decimal point and numbers only
+		const sanitized = value.replace(/[^\d.]/g, '');
+
+		// Prevent multiple decimal points
+		const parts = sanitized.split('.');
+		if (parts.length > 2) {
+			weight = parts[0] + '.' + parts.slice(1).join('');
+		} else {
+			weight = sanitized;
 		}
 	}
 
-	$: {
-		// Format price to 2 decimal places when input changes
-		if (price) {
-			const parsed = parseFloat(price);
-			if (!isNaN(parsed)) {
-				price = parsed.toFixed(2);
-			}
+	// Handle price input with better validation
+	function handlePriceInput(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const value = input.value;
+
+		// Allow for decimal point and numbers only
+		const sanitized = value.replace(/[^\d.]/g, '');
+
+		// Prevent multiple decimal points
+		const parts = sanitized.split('.');
+		if (parts.length > 2) {
+			price = parts[0] + '.' + parts.slice(1).join('');
+		} else {
+			price = sanitized;
 		}
 	}
+
+	// Format values on blur (when user finishes typing)
+	function handleWeightBlur() {
+		weight = formatDecimal(weight);
+	}
+
+	function handlePriceBlur() {
+		price = formatDecimal(price);
+	}
+
 	$: if (mode === 'edit' && initialData) {
 		name = initialData.name;
 		description = initialData.description;
@@ -232,6 +263,8 @@
 							inputmode="decimal"
 							id="weight"
 							bind:value={weight}
+							on:input={handleWeightInput}
+							on:blur={handleWeightBlur}
 							placeholder="0.00"
 							class="w-full px-3 py-2 border rounded-lg bg-white focus:border-primary-500 focus-visible:border-primary-500 outline-primary-500"
 						/>
@@ -261,19 +294,18 @@
 				</div>
 
 				<!-- Price Input -->
-				<div class="relative">
-					<label for="price" class="text-sm font-medium text-gray-900">Price</label>
-					<div class="flex gap-2">
-						<div class="flex items-center px-3 text-gray-400">$</div>
-						<input
-							type="text"
-							inputmode="decimal"
-							id="price"
-							bind:value={price}
-							placeholder="0.00"
-							class="w-full px-3 py-2 border rounded-lg bg-white focus:border-primary-500 focus-visible:border-primary-500 outline-primary-500"
-						/>
-					</div>
+				<div class="flex gap-2">
+					<div class="flex items-center px-3 text-gray-400">$</div>
+					<input
+						type="text"
+						inputmode="decimal"
+						id="price"
+						bind:value={price}
+						on:input={handlePriceInput}
+						on:blur={handlePriceBlur}
+						placeholder="0.00"
+						class="w-full px-3 py-2 border rounded-lg bg-white focus:border-primary-500 focus-visible:border-primary-500 outline-primary-500"
+					/>
 				</div>
 
 				<!-- Link Input -->
