@@ -22,17 +22,25 @@
 	} from 'phosphor-svelte';
 	import { fly } from 'svelte/transition';
 	import { toast } from '$lib/stores/toastStore';
+	import ItemDetailsDrawer from '$lib/components/forms/ItemDetailsDrawer.svelte';
 
 	export let data: PageData;
 	export let form: ActionData;
 
+	listStore.initializeWithData(data.list, data.listItems);
+
 	let isEditingName = false;
 	let showDeleteConfirm = false;
 	let showNewItemDrawer = false;
+	let showItemDetails = false;
+	let selectedItem: ListItemWithDetails | null = null;
 	let showChart = false;
 	let nameUpdatePending = false;
 	let nameError: string | null = null;
 	let originalName: string;
+	let isNavigatingAway = false;
+	let currentList = data.list;
+	let currentItems = data.listItems;
 
 	// Drawer gesture handling
 	let drawerElement: HTMLElement;
@@ -42,9 +50,14 @@
 	const threshold = 150;
 
 	// Use server-loaded data as initial values
-	$: list = $listStore.activeList || data.list;
-	$: listItems = $activeListItems; // Use the derived store directly
-	$: loading = $listStore?.loading?.items || false;
+	$: list = isNavigatingAway ? currentList : $listStore.activeList || currentList;
+	$: listItems = isNavigatingAway
+		? currentItems
+		: $activeListItems.length
+			? $activeListItems
+			: currentItems;
+	$: loading = !isNavigatingAway && $listStore?.loading?.items;
+
 	$: {
 		console.log('Store state changed:', $listStore);
 		console.log('Active list items:', $listStore.activeListItems);
@@ -63,26 +76,26 @@
 	}, {});
 
 	onMount(async () => {
-		console.log('Component mounting with data:', data);
 		if (data.list?.id) {
-			try {
-				console.log('Setting active list:', data.list.id);
-				await listStore.setActiveList(data.list.id);
-				console.log('Active list set, store state:', $listStore);
-			} catch (error) {
-				console.error('Error setting active list:', error);
-			}
+			// This will now only load if the data isn't already initialized
+			await listStore.setActiveList(data.list.id);
 		}
 	});
 
 	async function handleBack() {
-		// Reset the store before navigation
-		listStore.reset();
 		await goto('/app');
+		// Reset after navigation
+		listStore.reset();
 	}
 
 	function handleCloseDrawer() {
-		showNewItemDrawer = false;
+		if (showNewItemDrawer) {
+			showNewItemDrawer = false;
+		}
+		if (showItemDetails) {
+			showItemDetails = false;
+			selectedItem = null;
+		}
 	}
 
 	function handleTouchStart(e: TouchEvent) {
@@ -124,59 +137,9 @@
 		showNewItemDrawer = true;
 	}
 
-	async function handleAddItem(
-		event: CustomEvent<{
-			formData: FormData;
-			action: string;
-			callback: () => void;
-		}>
-	) {
-		console.log('handleAddItem called with:', event.detail);
-		const { formData, action, callback } = event.detail;
-
-		// Add use:enhance to the form submission
-		const submit = enhance(() => {
-			console.log('enhance callback starting');
-			return async ({ result }) => {
-				console.log('Form submission result:', result);
-				if (result.type === 'success') {
-					showNewItemDrawer = false;
-					if (list?.id) {
-						await listStore.loadListDetails(list.id);
-					}
-					callback();
-				} else {
-					console.error('Failed to add item:', result);
-					// Reset submitting state on error
-					callback();
-				}
-			};
-		});
-
-		// Create a form and submit it programmatically
-		console.log('Creating form for submission');
-		const form = document.createElement('form');
-		form.method = 'POST';
-		form.action = action;
-
-		// Add the enhance function to the form
-		submit(form);
-
-		// Add form data
-		for (const [key, value] of formData.entries()) {
-			console.log('Adding form field:', key, value);
-			const input = document.createElement('input');
-			input.type = 'hidden';
-			input.name = key;
-			input.value = value.toString();
-			form.appendChild(input);
-		}
-
-		// Submit the form
-		console.log('Submitting form');
-		document.body.appendChild(form);
-		form.submit();
-		document.body.removeChild(form);
+	function handleItemClick(item: ListItemWithDetails) {
+		selectedItem = item;
+		showItemDetails = true;
 	}
 
 	function handleMyGear() {
@@ -321,7 +284,19 @@
 							<h2 class="text-2xl font-bold mb-3 px-2">{category}</h2>
 							<div class="grid grid-cols-3 gap-2">
 								{#each items as item (item.id)}
-									<div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+									<div
+										class="bg-white rounded-lg border border-gray-200 overflow-hidden cursor-pointer
+           hover:border-primary-500 transition-colors"
+										on:click={() => handleItemClick(item)}
+										on:keydown={(e) => {
+											if (e.key === 'Enter' || e.key === ' ') {
+												e.preventDefault();
+												handleItemClick(item);
+											}
+										}}
+										role="button"
+										tabindex="0"
+									>
 										<div class="flex flex-col">
 											<!-- Item Image -->
 											<div class="relative bg-primary-100 w-full aspect-square">
@@ -507,6 +482,28 @@
 					</div>
 				</div>
 			</div>
+		{/if}
+
+		{#if showItemDetails && selectedItem}
+			<ItemDetailsDrawer
+				item={selectedItem}
+				listId={list.id}
+				bind:drawerElement
+				on:close={() => {
+					showItemDetails = false;
+					selectedItem = null;
+				}}
+				on:itemUpdated={async () => {
+					if (list?.id) {
+						await listStore.loadListDetails(list.id);
+					}
+				}}
+				on:itemRemoved={async () => {
+					if (list?.id) {
+						await listStore.loadListDetails(list.id);
+					}
+				}}
+			/>
 		{/if}
 	{/if}
 </div>

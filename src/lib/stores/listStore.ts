@@ -84,6 +84,7 @@ interface ListStore extends Readable<ListState> {
 			items?: ListItemWithDetails[];
 		}
 	) => void;
+	initializeWithData: (list: DBList, items: ListItemWithDetails[]) => void; // Add this line
 	reset: () => void;
 }
 
@@ -98,6 +99,7 @@ function createListStore(): ListStore {
 		},
 		error: null
 	});
+	let initialized = false;
 
 	const activeList = derived<Readable<ListState>, DBList | null>({ subscribe }, ($state) => {
 		if (!$state.activeListId) return null;
@@ -119,7 +121,11 @@ function createListStore(): ListStore {
 	// Define async functions outside return
 	async function setActiveList(listId: string) {
 		update((state) => ({ ...state, activeListId: listId }));
-		await loadListDetails(listId);
+
+		// Only fetch if we haven't initialized OR if the data is old
+		if (!initialized || needsRefresh(listId)) {
+			await loadListDetails(listId);
+		}
 	}
 
 	async function loadListDetails(listId: string) {
@@ -281,6 +287,30 @@ function createListStore(): ListStore {
 		}
 	}
 
+	function initializeWithData(list: DBList, items: ListItemWithDetails[]) {
+		if (!initialized && list) {
+			update((state) => {
+				const newLists = new Map(state.lists);
+				const newListItems = new Map(state.listItems);
+
+				newLists.set(list.id, list);
+				newListItems.set(list.id, items);
+
+				return {
+					...state,
+					activeListId: list.id,
+					lists: newLists,
+					listItems: newListItems,
+					loading: {
+						lists: false,
+						items: false
+					}
+				};
+			});
+			initialized = true;
+		}
+	}
+
 	function updateListData(
 		listId: string,
 		data: {
@@ -310,6 +340,7 @@ function createListStore(): ListStore {
 	}
 
 	function reset() {
+		initialized = false;
 		set({
 			activeListId: null,
 			lists: new Map(),
@@ -328,6 +359,7 @@ function createListStore(): ListStore {
 		loadListDetails,
 		fetchUserLists,
 		addItemToList,
+		initializeWithData, // Add this line
 		updateListData,
 		reset
 	};

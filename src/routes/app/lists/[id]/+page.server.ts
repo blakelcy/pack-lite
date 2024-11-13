@@ -266,37 +266,56 @@ export const actions = {
 			return fail(401, { error: 'Unauthorized' });
 		}
 
-		const formData = await request.formData();
-		const listItemId = formData.get('listItemId')?.toString();
-		const quantity = parseInt(formData.get('quantity')?.toString() || '1', 10);
-		const worn = formData.get('worn') === 'true';
-		const consumable = formData.get('consumable') === 'true';
-
-		if (!listItemId) {
-			return fail(400, { error: 'List item ID is required' });
-		}
-
 		try {
-			const { error: updateError } = await supabase
-				.from('list_items')
-				.update({
-					quantity,
-					worn,
-					consumable
-				})
-				.eq('id', listItemId)
-				.eq('list_id', listId);
+			const formData = await request.formData();
+			const listItemId = formData.get('listItemId')?.toString();
+			const itemId = formData.get('itemId')?.toString();
 
-			if (updateError) throw updateError;
+			if (!listItemId || !itemId) {
+				return fail(400, { error: 'List item ID and Item ID are required' });
+			}
+
+			// List-specific properties
+			const listItemData = {
+				quantity: parseInt(formData.get('quantity')?.toString() || '1', 10),
+				worn: formData.get('worn') === 'true',
+				consumable: formData.get('consumable') === 'true'
+			};
+
+			// Core item properties
+			const itemData = {
+				name: formData.get('name')?.toString(),
+				description: formData.get('description')?.toString() || null,
+				weight: parseFloat(formData.get('weight')?.toString() || '0'),
+				weight_unit: formData.get('weight_unit')?.toString() || 'oz',
+				price: parseFloat(formData.get('price')?.toString() || '0'),
+				url: formData.get('url')?.toString() || null,
+				image_url: formData.get('image_url')?.toString() || null,
+				updated_at: new Date().toISOString()
+			};
+
+			// Verify ownership and update both in a transaction
+			const { data, error } = await supabase.rpc('update_list_item_and_details', {
+				p_list_item_id: listItemId,
+				p_item_id: itemId,
+				p_user_id: session.user.id,
+				p_list_item_data: listItemData,
+				p_item_data: itemData
+			});
+
+			if (error) throw error;
 
 			// Trigger recount of list items
 			await supabase.rpc('recalculate_all_list_counts');
 
-			return { success: true };
+			return {
+				success: true,
+				data: { item: data }
+			};
 		} catch (err) {
-			console.error('Error updating list item:', err);
+			console.error('Error updating item:', err);
 			return fail(500, {
-				error: 'Failed to update list item',
+				error: 'Failed to update item',
 				details: err instanceof Error ? err.message : 'Unknown error'
 			});
 		}

@@ -12,6 +12,18 @@
 	const dispatch = createEventDispatcher();
 
 	export let listId: string | undefined = undefined;
+	export let mode: 'create' | 'edit' = 'create';
+	export let initialData: {
+		name: string;
+		description: string;
+		weight: string;
+		weight_unit: WeightUnit;
+		price: string;
+		url: string;
+		image_url: string;
+		worn: boolean;
+		consumable: boolean;
+	} | null = null;
 
 	type WeightUnit = 'oz' | 'g' | 'kg' | 'lb';
 
@@ -76,6 +88,17 @@
 			}
 		}
 	}
+	$: if (mode === 'edit' && initialData) {
+		name = initialData.name;
+		description = initialData.description;
+		weight = initialData.weight;
+		weightUnit = initialData.weight_unit;
+		price = initialData.price;
+		link = initialData.url;
+		imageUrl = initialData.image_url;
+		isWorn = initialData.worn;
+		isConsumable = initialData.consumable;
+	}
 
 	function handleImageSelect(e: Event) {
 		const input = e.target as HTMLInputElement;
@@ -102,16 +125,18 @@
 
 <form
 	method="POST"
-	action="?/addItem"
+	action={mode === 'create' ? '?/addItem' : '?/updateListItem'}
 	use:enhance={() => {
 		submitting = true;
 		return async ({ result }) => {
 			console.log('Form submission result:', result);
 			if (result.type === 'success') {
-				resetForm();
-				dispatch('success');
+				if (mode === 'create') {
+					resetForm();
+				}
+				dispatch('success', result.data);
 			} else {
-				console.error('Failed to add item:', result);
+				console.error(`Failed to ${mode} item:`, result);
 			}
 			submitting = false;
 		};
@@ -278,13 +303,18 @@
 	{#if listId}
 		<input type="hidden" name="listId" value={listId} />
 	{/if}
+	{#if mode === 'edit'}
+		<input type="hidden" name="itemId" value={initialData?.id} />
+		<input type="hidden" name="listItemId" value={initialData?.listItemId} />
+	{/if}
+	<!-- Submit Button -->
 	<!-- Submit Button -->
 	<div class="px-2 mb-4 w-full h-14">
 		<button
 			type="submit"
 			class="w-full h-full p-1 text-center bg-primary-500 text-white font-medium
-                   border border-primary-900 rounded-xl hover:bg-primary-800
-                   disabled:opacity-50 disabled:cursor-not-allowed"
+               border border-primary-900 rounded-xl hover:bg-primary-800
+               disabled:opacity-50 disabled:cursor-not-allowed"
 			disabled={submitting}
 		>
 			<div
@@ -295,7 +325,7 @@
 						class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mx-auto"
 					/>
 				{:else}
-					ADD ITEM
+					{mode === 'create' ? 'ADD ITEM' : 'SAVE CHANGES'}
 				{/if}
 			</div>
 		</button>
