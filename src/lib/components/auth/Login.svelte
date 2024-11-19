@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { authStore } from '$lib/stores/auth';
 	import { supabase } from '$lib/supabase';
 
 	let loading = false;
@@ -19,6 +21,19 @@
 			if (signInError) throw signInError;
 		} catch (e) {
 			console.error('Error:', e);
+			error = e.message;
+			loading = false;
+		}
+	}
+	async function continueAsGuest() {
+		try {
+			loading = true;
+			// Set guest session in auth store
+			authStore.setGuest();
+			// Redirect to guest list page
+			await goto('/guest/list');
+		} catch (e) {
+			console.error('Error continuing as guest:', e);
 			error = e.message;
 			loading = false;
 		}
@@ -65,6 +80,25 @@
 				{:else}
 					Sign in with Google
 				{/if}
+			</button>
+
+			<!-- Guest button -->
+			<div class="relative">
+				<div class="absolute inset-0 flex items-center">
+					<div class="w-full border-t border-white/10"></div>
+				</div>
+				<div class="relative flex justify-center text-sm">
+					<span class="px-2 bg-primary-500 text-white/60">or</span>
+				</div>
+			</div>
+
+			<button
+				type="button"
+				on:click={continueAsGuest}
+				disabled={loading}
+				class="w-full flex justify-center py-2 px-4 border border-white/20 text-sm font-medium rounded-md text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
+			>
+				Continue as Guest
 			</button>
 
 			{#if error}

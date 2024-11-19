@@ -10,7 +10,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 			return resolve(event);
 		}
 
-		// Token handling
+		// Guest route handling
+		const isGuestRoute = event.url.pathname.startsWith('/guest');
+		const isGuestSession = event.cookies.get('guest-session') === 'true';
+
+		// Token handling for authenticated users
 		const accessToken = event.cookies.get('sb-access-token');
 		const refreshToken = event.cookies.get('sb-refresh-token');
 
@@ -75,12 +79,30 @@ export const handle: Handle = async ({ event, resolve }) => {
 			}
 		}
 
-		// Protected routes check
-		const protectedRoutes = ['/app', '/app/lists'];
-		const isProtectedRoute = protectedRoutes.some((route) => event.url.pathname.startsWith(route));
+		// Route protection logic
+		if (session) {
+			// Authenticated users shouldn't access guest routes
+			if (isGuestRoute) {
+				throw redirect(303, '/app');
+			}
+		} else if (!isGuestRoute && !isGuestSession) {
+			// Non-authenticated users must use guest routes or be in a guest session
+			const protectedRoutes = ['/app', '/app/lists'];
+			const isProtectedRoute = protectedRoutes.some((route) =>
+				event.url.pathname.startsWith(route)
+			);
 
-		if (isProtectedRoute && !session) {
-			throw redirect(303, '/login');
+			if (isProtectedRoute) {
+				throw redirect(303, '/login');
+			}
+		}
+
+		// Handle guest session creation
+		if (isGuestRoute && !isGuestSession) {
+			event.cookies.set('guest-session', 'true', {
+				path: '/',
+				maxAge: 60 * 60 * 24 // 24 hours
+			});
 		}
 
 		return resolve(event);
