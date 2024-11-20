@@ -50,36 +50,13 @@
 				type="button"
 				on:click={signInWithGoogle}
 				disabled={loading}
-				class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+				class="relative w-full h-14 flex justify-center p-1 text-sm font-medium text-white border border-primary-900 rounded-xl bg-primary-400 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 			>
-				{#if loading}
-					<span class="absolute left-0 inset-y-0 flex items-center pl-3">
-						<!-- Loading spinner -->
-						<svg
-							class="animate-spin h-5 w-5 text-white"
-							xmlns="http://www.w3.org/2000/svg"
-							fill="none"
-							viewBox="0 0 24 24"
-						>
-							<circle
-								class="opacity-25"
-								cx="12"
-								cy="12"
-								r="10"
-								stroke="currentColor"
-								stroke-width="4"
-							></circle>
-							<path
-								class="opacity-75"
-								fill="currentColor"
-								d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-							></path>
-						</svg>
-					</span>
-					Processing...
-				{:else}
-					Sign in with Google
-				{/if}
+				<div
+					class="w-full h-full flex justify-center items-center border border-primary-900 rounded-lg uppercase"
+				>
+					Sign up with goolge
+				</div>
 			</button>
 
 			<!-- Guest button -->
@@ -96,9 +73,13 @@
 				type="button"
 				on:click={continueAsGuest}
 				disabled={loading}
-				class="w-full flex justify-center py-2 px-4 border border-white/20 text-sm font-medium rounded-md text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
+				class="relative w-full h-14 flex justify-center p-1 text-sm font-medium text-white border border-secondary-900 rounded-xl bg-secondary-400 hover:bg-secondary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary-500"
 			>
-				Continue as Guest
+				<div
+					class="w-full h-full flex justify-center items-center border border-secondary-900 rounded-lg uppercase"
+				>
+					Let me try it
+				</div>
 			</button>
 
 			{#if error}

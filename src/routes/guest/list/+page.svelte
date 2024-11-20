@@ -45,7 +45,8 @@
 		<!-- Guest Mode Notice -->
 		<div class="bg-blue-50 p-4 rounded-lg mb-6">
 			<p class="text-sm text-blue-700">
-				You're in guest mode. Your list will be available during your current session.
+				You're in guest mode. Your list will be available while this browser is open. Once closed
+				the list will be deleted.
 				<a href="/guest/profile" class="underline font-medium">Create an account</a>
 				to save your data permanently.
 			</p>
@@ -58,7 +59,8 @@
 			<div class="text-center py-12">
 				<h2 class="text-xl font-medium text-gray-600 mb-4">Create your first gear list</h2>
 				<p class="text-gray-500 mb-8">
-					Guest lists are limited to 20 items and will persist for your current session
+					Tap the plus icon to create your list. Guest lists are limited to 20 items and will
+					persist for your current session.
 				</p>
 			</div>
 		{:else}
@@ -130,7 +132,4 @@
 			{/if}
 		</button>
 	{/if}
-
-	<!-- Bottom Navigation -->
-	<BottomNav />
 </div>

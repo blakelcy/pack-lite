@@ -250,7 +250,7 @@
 											</div>
 
 											<div class="flex justify-between items-start text-xs text-gray-600 mb-1">
-												<div>{item.weight} oz</div>
+												<div>{item.weight} {item.weight_unit ?? 'oz'}</div>
 												<div>${(item.price || 0).toFixed(2)}</div>
 											</div>
 
@@ -435,7 +435,7 @@
 								</div>
 
 								<div class="flex justify-between items-start text-xs text-gray-600">
-									<div>{item.weight} oz</div>
+									<div>{item.weight} {item.weight_unit ?? 'oz'}</div>
 									<div>${(item.price || 0).toFixed(2)}</div>
 								</div>
 							</div>

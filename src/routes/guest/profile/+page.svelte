@@ -73,22 +73,18 @@
 			{/if}
 
 			<!-- Sign Up Button -->
+
 			<button
 				type="button"
 				on:click={handleSignup}
 				disabled={loading}
-				class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg
-                       text-white bg-primary-600 hover:bg-primary-700 focus:outline-none
-                       focus:ring-2 focus:ring-offset-2 focus:ring-primary-500
-                       disabled:opacity-50 disabled:cursor-not-allowed"
+				class="relative w-full h-14 flex justify-center p-1 text-sm font-medium text-white border border-primary-900 rounded-xl bg-primary-400 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 			>
-				{#if loading}
-					<div
-						class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"
-					/>
-				{:else}
-					Continue with Google
-				{/if}
+				<div
+					class="w-full h-full flex justify-center items-center border border-primary-900 rounded-lg uppercase"
+				>
+					Sign up with goolge
+				</div>
 			</button>
 
 			{#if error}
