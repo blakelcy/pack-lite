@@ -291,7 +291,7 @@
 					{#each Object.entries(groupedItems) as [category, items] (category)}
 						<div class="mb-12">
 							<h2 class="text-2xl font-bold mb-3 px-2">{category}</h2>
-							<div class="grid grid-cols-3 gap-2">
+							<div class="grid grid-cols-3 gap-2 md:grid-cols-6 lg:grid-cols-12">
 								{#each items as item (item.id)}
 									<div
 										class="bg-white rounded-lg border border-gray-200 overflow-hidden cursor-pointer
