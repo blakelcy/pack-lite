@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { run, self } from 'svelte/legacy';
+
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import type { PageData, ActionData } from './$types';
@@ -25,48 +27,52 @@
 	import { toast } from '$lib/stores/toastStore';
 	import ItemDetailsDrawer from '$lib/components/forms/ItemDetailsDrawer.svelte';
 
-	export let data: PageData;
-	export let form: ActionData;
+	interface Props {
+		data: PageData;
+		form: ActionData;
+	}
+
+	let { data, form }: Props = $props();
 
 	listStore.initializeWithData(data.list, data.listItems);
 
-	let isEditingName = false;
-	let showDeleteConfirm = false;
-	let showNewItemDrawer = false;
-	let showItemDetails = false;
-	let selectedItem: ListItemWithDetails | null = null;
-	let showChart = false;
+	let isEditingName = $state(false);
+	let showDeleteConfirm = $state(false);
+	let showNewItemDrawer = $state(false);
+	let showItemDetails = $state(false);
+	let selectedItem: ListItemWithDetails | null = $state(null);
+	let showChart = $state(false);
 	let nameUpdatePending = false;
-	let nameError: string | null = null;
-	let originalName: string;
+	let nameError: string | null = $state(null);
+	let originalName: string = $state();
 	let isNavigatingAway = false;
 	let currentList = data.list;
 	let currentItems = data.listItems;
 
 	// Drawer gesture handling
-	let drawerElement: HTMLElement;
+	let drawerElement: HTMLElement = $state();
 	let isDragging = false;
 	let startY = 0;
 	let currentY = 0;
 	const threshold = 150;
 
 	// Use server-loaded data as initial values
-	$: list = isNavigatingAway ? currentList : $listStore.activeList || currentList;
-	$: listItems = isNavigatingAway
+	let list = $derived(isNavigatingAway ? currentList : $listStore.activeList || currentList);
+	let listItems = $derived(isNavigatingAway
 		? currentItems
 		: $activeListItems.length
 			? $activeListItems
-			: currentItems;
-	$: loading = !isNavigatingAway && $listStore?.loading?.items;
+			: currentItems);
+	let loading = $derived(!isNavigatingAway && $listStore?.loading?.items);
 
-	$: {
+	run(() => {
 		console.log('Store state changed:', $listStore);
 		console.log('Active list items:', $listStore.activeListItems);
 		console.log('List items:', listItems);
-	}
+	});
 	// Safe grouping with null check and default empty array
 
-	$: groupedItems = (listItems || []).reduce<GroupedItems>((acc, item) => {
+	let groupedItems = $derived((listItems || []).reduce<GroupedItems>((acc, item) => {
 		console.log('Processing item for grouping:', item);
 		const category = item.items?.categories?.name || 'Uncategorized';
 		if (!acc[category]) {
@@ -74,7 +80,7 @@
 		}
 		acc[category].push(item);
 		return acc;
-	}, {});
+	}, {}));
 
 	onMount(async () => {
 		if (data.list?.id) {
@@ -153,7 +159,7 @@
 		<div class="flex-1 flex items-center justify-center">
 			<div
 				class="animate-spin h-8 w-8 border-2 border-primary-500 border-t-transparent rounded-full"
-			/>
+			></div>
 		</div>
 	{:else if !list}
 		<div class="flex-1 flex items-center justify-center">
@@ -162,7 +168,7 @@
 	{:else}
 		<!-- Top Bar -->
 		<header class="px-4 py-3 flex items-center justify-between border-b">
-			<button class="p-2 text-gray-900 hover:text-gray-800" on:click={handleBack}>
+			<button class="p-2 text-gray-900 hover:text-gray-800" onclick={handleBack}>
 				<CaretCircleLeft size={24} weight="fill" />
 			</button>
 
@@ -200,9 +206,9 @@
                        {nameError ? 'border-red-500' : 'border-gray-300'}
                        focus:outline-none focus:border-primary-500 transition-colors"
 							bind:value={list.name}
-							on:input={() => (nameError = null)}
-							on:blur={(e) => !nameError && e.currentTarget.form?.requestSubmit()}
-							on:keydown={(e) => {
+							oninput={() => (nameError = null)}
+							onblur={(e) => !nameError && e.currentTarget.form?.requestSubmit()}
+							onkeydown={(e) => {
 								if (e.key === 'Enter') {
 									e.preventDefault();
 									e.currentTarget.form?.requestSubmit();
@@ -228,7 +234,7 @@
 				{:else}
 					<button
 						class="w-full text-lg font-medium text-center hover:text-primary-600 relative group"
-						on:click={() => {
+						onclick={() => {
 							isEditingName = true;
 							nameError = null;
 						}}
@@ -247,7 +253,7 @@
 
 			<button
 				class="p-2 text-red-600 hover:text-red-700 text-sm font-medium"
-				on:click={() => (showDeleteConfirm = true)}
+				onclick={() => (showDeleteConfirm = true)}
 			>
 				<Trash size={20} weight="fill" />
 			</button>
@@ -265,7 +271,7 @@
 				<button
 					class="bg-primary-500 text-white px-6 py-2 rounded-lg font-medium text-sm
                        flex items-center gap-2 hover:bg-green-900 transition-colors"
-					on:click={() => (showChart = !showChart)}
+					onclick={() => (showChart = !showChart)}
 				>
 					<ChartDonut size={20} weight="fill" />
 					View Chart
@@ -279,7 +285,7 @@
 				<div class="flex justify-center items-center py-8">
 					<div
 						class="animate-spin h-8 w-8 border-2 border-primary-500 border-t-transparent rounded-full"
-					/>
+					></div>
 				</div>
 			{:else if !Array.isArray(listItems) || listItems.length === 0}
 				<div class="text-center text-gray-500 py-8">
@@ -296,8 +302,8 @@
 									<div
 										class="bg-white rounded-lg border border-gray-200 overflow-hidden cursor-pointer
            hover:border-primary-500 transition-colors"
-										on:click={() => handleItemClick(item)}
-										on:keydown={(e) => {
+										onclick={() => handleItemClick(item)}
+										onkeydown={(e) => {
 											if (e.key === 'Enter' || e.key === ' ') {
 												e.preventDefault();
 												handleItemClick(item);
@@ -379,14 +385,14 @@
 		<nav class="fixed bottom-4 px-2 w-full h-14 grid gap-3 grid-cols-2">
 			<button
 				class="p-1 text-center bg-white text-primary-500 font-medium border border-primary-900 rounded-xl hover:bg-primary-800"
-				on:click={handleMyGear}
+				onclick={handleMyGear}
 				><div class="w-full h-full flex justify-center items-center border border-white rounded-lg">
 					MY GEAR
 				</div>
 			</button>
 			<button
 				class="p-1 text-center bg-primary-500 text-white font-medium border border-primary-900 rounded-xl hover:bg-primary-800"
-				on:click={handleNewItem}
+				onclick={handleNewItem}
 			>
 				<div
 					class="w-full h-full flex justify-center items-center border border-primary-900 rounded-lg"
@@ -399,7 +405,7 @@
 		{#if showDeleteConfirm}
 			<div
 				class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
-				on:click|self={() => (showDeleteConfirm = false)}
+				onclick={self(() => (showDeleteConfirm = false))}
 			>
 				<div class="bg-white rounded-lg p-6 max-w-sm w-full">
 					<h3 class="text-lg font-medium mb-4">Delete List</h3>
@@ -426,7 +432,7 @@
 							<button
 								type="button"
 								class="px-4 py-2 text-gray-600 hover:text-gray-800"
-								on:click={() => (showDeleteConfirm = false)}
+								onclick={() => (showDeleteConfirm = false)}
 							>
 								Cancel
 							</button>
@@ -446,31 +452,31 @@
 		{#if showNewItemDrawer}
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div class="fixed inset-0 z-50" on:click|self={handleCloseDrawer}>
+			<div class="fixed inset-0 z-50" onclick={self(handleCloseDrawer)}>
 				<!-- Semi-transparent overlay -->
 				<!-- svelte-ignore element_invalid_self_closing_tag -->
 				<div
 					class="absolute inset-0 bg-black bg-opacity-50 transition-opacity duration-300"
 					transition:fly={{ duration: 200, y: 0, opacity: 1 }}
-				/>
+				></div>
 
 				<!-- Drawer -->
 				<div
 					bind:this={drawerElement}
 					class="absolute inset-x-0 bottom-0 bg-gray-50 rounded-t-xl overflow-hidden touch-none"
 					style="transform: translateY(0)"
-					on:touchstart={handleTouchStart}
-					on:touchmove={handleTouchMove}
-					on:touchend={handleTouchEnd}
-					on:touchcancel={handleTouchEnd}
+					ontouchstart={handleTouchStart}
+					ontouchmove={handleTouchMove}
+					ontouchend={handleTouchEnd}
+					ontouchcancel={handleTouchEnd}
 				>
 					<!-- svelte-ignore element_invalid_self_closing_tag -->
-					<div class="h-1 w-12 bg-gray-300 rounded-full mx-auto mt-3 mb-5" />
+					<div class="h-1 w-12 bg-gray-300 rounded-full mx-auto mt-3 mb-5"></div>
 
 					<!-- Header -->
 					<header class="px-4 pb-3 border-b bg-white flex justify-between items-center">
 						<h2 class="text-lg font-medium">Add Item</h2>
-						<button class="p-1 rounded-full hover:bg-gray-100" on:click={handleCloseDrawer}>
+						<button class="p-1 rounded-full hover:bg-gray-100" onclick={handleCloseDrawer}>
 							<XCircle size={24} />
 						</button>
 					</header>

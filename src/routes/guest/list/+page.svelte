@@ -4,10 +4,10 @@
 	import BottomNav from '$lib/components/navigation/BottomNav.svelte';
 	import { guestStore } from '$lib/stores/guest';
 
-	let isCreatingList = false;
+	let isCreatingList = $state(false);
 
 	// Subscribe to guest store
-	$: ({ list, loading, error } = $guestStore);
+	let { list, loading, error } = $derived($guestStore);
 
 	// Handle list creation
 	async function handleCreateList() {
@@ -38,7 +38,7 @@
 		</div>
 	</header>
 
-	<div class="h-14" />
+	<div class="h-14"></div>
 
 	<!-- Main Content -->
 	<main class="flex-1 px-4 py-6 mb-16">
@@ -53,7 +53,7 @@
 		</div>
 		{#if loading}
 			<div class="flex justify-center">
-				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
 			</div>
 		{:else if !list}
 			<div class="text-center py-12">
@@ -69,7 +69,7 @@
 				class="block w-full p-4 rounded-lg border border-gray-200 hover:border-primary-500
                        bg-white text-left relative overflow-hidden
                        hover:shadow-md transition-all group"
-				on:click={() => goto(`/guest/list/${list.id}`)}
+				onclick={() => goto(`/guest/list/${list.id}`)}
 			>
 				<div class="relative space-y-1">
 					<div class="flex justify-between items-center pb-3">
@@ -88,7 +88,7 @@
 
 					<div class="grid grid-cols-2 gap-4">
 						<div class="flex items-center gap-3">
-							<div class="w-3 h-3 rounded-sm bg-blue-500 mt-1" />
+							<div class="w-3 h-3 rounded-sm bg-blue-500 mt-1"></div>
 							<div>
 								<p class="text-sm font-medium text-gray-900">
 									{list.item_count || 0}
@@ -98,7 +98,7 @@
 						</div>
 
 						<div class="flex items-center gap-3">
-							<div class="w-3 h-3 rounded-sm bg-green-500 mt-1" />
+							<div class="w-3 h-3 rounded-sm bg-green-500 mt-1"></div>
 							<div>
 								<p class="text-sm font-medium text-gray-900">
 									{list.total_weight || 0} oz
@@ -123,10 +123,10 @@
                    disabled:opacity-50 disabled:cursor-not-allowed"
 			disabled={isCreatingList}
 			aria-label="Create new list"
-			on:click={handleCreateList}
+			onclick={handleCreateList}
 		>
 			{#if isCreatingList}
-				<div class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+				<div class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
 			{:else}
 				<Plus size={24} weight="regular" />
 			{/if}

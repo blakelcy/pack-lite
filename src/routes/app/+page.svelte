@@ -8,13 +8,17 @@
 	import { page } from '$app/stores';
 	import { listStore } from '$lib/stores/listStore';
 
-	export let data: PageData;
-	export let form: ActionData;
+	interface Props {
+		data: PageData;
+		form: ActionData;
+	}
 
-	let isScrolled = false;
-	let header: HTMLElement;
-	let isCreatingList = false;
-	let searchQuery = data.searchQuery;
+	let { data, form }: Props = $props();
+
+	let isScrolled = $state(false);
+	let header: HTMLElement = $state();
+	let isCreatingList = $state(false);
+	let searchQuery = $state(data.searchQuery);
 
 	// Handle scroll events
 	function handleScroll() {
@@ -73,7 +77,7 @@
 	}
 </script>
 
-<svelte:window on:scroll={handleScroll} />
+<svelte:window onscroll={handleScroll} />
 
 <div class="min-h-screen bg-white flex flex-col">
 	<!-- Top Bar with Search -->
@@ -89,14 +93,14 @@
 				type="search"
 				placeholder="Search gear lists..."
 				bind:value={searchQuery}
-				on:input={() => handleSearch()}
+				oninput={() => handleSearch()}
 				class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200
                        focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
 			/>
 		</div>
 	</header>
 
-	<div class="h-14" />
+	<div class="h-14"></div>
 
 	<!-- Main Content -->
 	<main class="flex-1 px-4 py-6 mb-16">
@@ -118,7 +122,7 @@
 						class="block p-4 rounded-lg border border-gray-200 hover:border-primary-500
                                bg-white text-left w-full relative overflow-hidden
                                hover:shadow-md transition-all group"
-						on:click={() => goto(`/app/lists/${list.id}`)}
+						onclick={() => goto(`/app/lists/${list.id}`)}
 					>
 						<div class="relative space-y-1">
 							<div class="flex justify-between items-center pb-3">
@@ -137,7 +141,7 @@
 
 							<div class="grid grid-cols-2 gap-4">
 								<div class="flex items-center gap-3">
-									<div class="w-3 h-3 rounded-sm {getRandomColor()} mt-1" />
+									<div class="w-3 h-3 rounded-sm {getRandomColor()} mt-1"></div>
 									<div>
 										<p class="text-sm font-medium text-gray-900">
 											{list.item_count || 0}
@@ -147,7 +151,7 @@
 								</div>
 
 								<div class="flex items-center gap-3">
-									<div class="w-3 h-3 rounded-sm {getRandomColor()} mt-1" />
+									<div class="w-3 h-3 rounded-sm {getRandomColor()} mt-1"></div>
 									<div>
 										<p class="text-sm font-medium text-gray-900">
 											{list.total_weight || 0} oz
@@ -176,7 +180,7 @@
 			aria-label="Create new list"
 		>
 			{#if isCreatingList}
-				<div class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+				<div class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
 			{:else}
 				<Plus size={24} weight="regular" />
 			{/if}

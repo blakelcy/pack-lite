@@ -1,116 +1,129 @@
 // hooks.server.ts
 import { redirect, type Handle } from '@sveltejs/kit';
 import { supabaseServer } from '$lib/server/supabase';
+import type { Session } from '@supabase/supabase-js';
+
+// Define constants at the top for better maintainability
+const PUBLIC_ROUTES = ['/auth/session', '/login', '/auth/callback'] as const;
+const PROTECTED_ROUTES = ['/app', '/app/lists'] as const;
+
+// Cookie configuration for consistency
+const COOKIE_CONFIG = {
+	path: '/',
+	httpOnly: true,
+	secure: process.env.NODE_ENV === 'production',
+	sameSite: 'lax',
+	maxAge: 60 * 60 * 24 * 7 // 1 week
+} as const;
+
+async function handleSession(event: Parameters<Handle>[0]['event']): Promise<Session | null> {
+	const accessToken = event.cookies.get('sb-access-token');
+	const refreshToken = event.cookies.get('sb-refresh-token');
+
+	if (!accessToken || !refreshToken) return null;
+
+	try {
+		const {
+			data: { session },
+			error
+		} = await supabaseServer.auth.setSession({
+			access_token: accessToken,
+			refresh_token: refreshToken
+		});
+
+		if (error) throw error;
+
+		// Update tokens if they've changed
+		if (session) {
+			if (session.access_token !== accessToken) {
+				event.cookies.set('sb-access-token', session.access_token, COOKIE_CONFIG);
+			}
+			if (session.refresh_token !== refreshToken) {
+				event.cookies.set('sb-refresh-token', session.refresh_token, COOKIE_CONFIG);
+			}
+			return session;
+		} else {
+			throw new Error('Session is null');
+		}
+	} catch (error) {
+		console.error('Session error:', error);
+		event.cookies.delete('sb-access-token', { path: '/' });
+		event.cookies.delete('sb-refresh-token', { path: '/' });
+		return null;
+	}
+}
+
+function shouldSkipAuth(pathname: string): boolean {
+	return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
+}
+
+function isProtectedRoute(pathname: string): boolean {
+	return PROTECTED_ROUTES.some((route) => pathname.startsWith(route));
+}
 
 export const handle: Handle = async ({ event, resolve }) => {
 	try {
-		// Always exclude these routes from any processing
-		const publicRoutes = ['/auth/session', '/login', '/auth/callback'];
-		if (publicRoutes.some((route) => event.url.pathname.startsWith(route))) {
+		const { url, cookies } = event;
+
+		// Add these debug logs here
+		console.log('Hook running for path:', url.pathname);
+		console.log('Is guest route:', url.pathname.startsWith('/guest'));
+		console.log('Is guest session:', cookies.get('guest-session') === 'true');
+
+		// Skip auth for public routes
+		if (shouldSkipAuth(url.pathname)) {
 			return resolve(event);
 		}
 
-		// Guest route handling
-		const isGuestRoute = event.url.pathname.startsWith('/guest');
-		const isGuestSession = event.cookies.get('guest-session') === 'true';
+		// Handle guest and auth session states
+		const isGuestRoute = url.pathname.startsWith('/guest');
+		const isGuestSession = cookies.get('guest-session') === 'true';
+		const session = await handleSession(event);
 
-		// Token handling for authenticated users
-		const accessToken = event.cookies.get('sb-access-token');
-		const refreshToken = event.cookies.get('sb-refresh-token');
+		// Set locals
+		event.locals = {
+			session,
+			supabase: supabaseServer,
+			isGuest: isGuestSession,
+			getSession: async () => session,
+			getCurrentUser: async () => session?.user ?? null
+		};
 
-		let session = null;
-
-		if (accessToken && refreshToken) {
-			try {
-				const {
-					data: { session: newSession },
-					error: sessionError
-				} = await supabaseServer.auth.setSession({
-					access_token: accessToken,
-					refresh_token: refreshToken
-				});
-
-				if (sessionError) {
-					console.error('Session refresh error:', sessionError);
-					// Clear invalid tokens
-					event.cookies.delete('sb-access-token', { path: '/' });
-					event.cookies.delete('sb-refresh-token', { path: '/' });
-				} else {
-					session = newSession;
-
-					// Update cookies with new tokens if they're different
-					if (newSession?.access_token !== accessToken) {
-						event.cookies.set('sb-access-token', newSession.access_token, {
-							path: '/',
-							httpOnly: true,
-							secure: process.env.NODE_ENV === 'production',
-							sameSite: 'lax',
-							maxAge: 60 * 60 * 24 * 7 // 1 week
-						});
-					}
-
-					if (newSession?.refresh_token !== refreshToken) {
-						event.cookies.set('sb-refresh-token', newSession.refresh_token, {
-							path: '/',
-							httpOnly: true,
-							secure: process.env.NODE_ENV === 'production',
-							sameSite: 'lax',
-							maxAge: 60 * 60 * 24 * 7 // 1 week
-						});
-					}
-				}
-			} catch (error) {
-				console.error('Session validation error:', error);
-				// Clear invalid tokens
-				event.cookies.delete('sb-access-token', { path: '/' });
-				event.cookies.delete('sb-refresh-token', { path: '/' });
-			}
-		}
-
-		event.locals.session = session;
-		event.locals.supabase = supabaseServer;
-
-		// Root route handling
-		if (event.url.pathname === '/') {
-			if (session) {
-				throw redirect(303, '/app');
-			} else {
-				throw redirect(303, '/login');
-			}
+		// Root route redirection
+		if (url.pathname === '/') {
+			throw redirect(303, session ? '/app' : '/login');
 		}
 
 		// Route protection logic
 		if (session) {
-			// Authenticated users shouldn't access guest routes
 			if (isGuestRoute) {
 				throw redirect(303, '/app');
 			}
 		} else if (!isGuestRoute && !isGuestSession) {
-			// Non-authenticated users must use guest routes or be in a guest session
-			const protectedRoutes = ['/app', '/app/lists'];
-			const isProtectedRoute = protectedRoutes.some((route) =>
-				event.url.pathname.startsWith(route)
-			);
-
-			if (isProtectedRoute) {
+			if (isProtectedRoute(url.pathname)) {
 				throw redirect(303, '/login');
 			}
 		}
 
-		// Handle guest session creation
+		// Handle guest session
 		if (isGuestRoute && !isGuestSession) {
-			event.cookies.set('guest-session', 'true', {
+			cookies.set('guest-session', 'true', {
 				path: '/',
 				maxAge: 60 * 60 * 24 // 24 hours
 			});
 		}
 
-		return resolve(event);
-	} catch (e) {
-		console.error('Hook error:', e);
-		if (e instanceof Response) {
-			return e;
+		const response = await resolve(event);
+
+		// You could add response headers here if needed
+		// response.headers.set('x-custom-header', 'value');
+
+		return response;
+	} catch (error) {
+		if (error instanceof Response) {
+			return error;
 		}
-		throw e;
+		console.error('Hook error:', error);
+		throw error;
 	}
 };

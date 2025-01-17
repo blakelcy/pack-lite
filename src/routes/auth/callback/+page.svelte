@@ -5,8 +5,8 @@
 	import { page } from '$app/stores';
 	import { guestStore } from '$lib/stores/guest';
 
-	let processing = true;
-	let error: string | null = null;
+	let processing = $state(true);
+	let error: string | null = $state(null);
 
 	async function migrateGuestData(session: any) {
 		try {
@@ -141,8 +141,8 @@
 		<div class="text-center">
 			<div
 				class="animate-spin h-8 w-8 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"
-			/>
-			<p class="text-gray-600">Setting up your account...</p>
+			></div>
+			<p class="text-gray-600">Calculating grams...</p>
 		</div>
 	</div>
 {:else if error}

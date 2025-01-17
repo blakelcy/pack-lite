@@ -6,28 +6,32 @@
 	import { Plus, MagnifyingGlass, TShirt, Cookie, Package, Link } from 'phosphor-svelte';
 	import BottomNav from '$lib/components/navigation/BottomNav.svelte';
 
-	export let data: PageData;
+	interface Props {
+		data: PageData;
+	}
 
-	let isScrolled = false;
-	let header: HTMLElement;
+	let { data }: Props = $props();
+
+	let isScrolled = $state(false);
+	let header: HTMLElement = $state();
 	let isCreatingItem = false;
-	let searchQuery = '';
-	let selectedFilters = {
+	let searchQuery = $state('');
+	let selectedFilters = $state({
 		worn: false,
 		consumable: false,
 		category: 'all'
-	};
+	});
 
 	// Initialize store with server data
 	onMount(() => {
 		itemStore.updateItems(data.items);
 	});
 
-	$: items = $itemStore.items || [];
-	$: loading = $itemStore.loading;
+	let items = $derived($itemStore.items || []);
+	let loading = $derived($itemStore.loading);
 
 	// Filter items based on search and filters
-	$: filteredItems = items.filter((item) => {
+	let filteredItems = $derived(items.filter((item) => {
 		const matchesSearch =
 			!searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -37,7 +41,7 @@
 			selectedFilters.category === 'all' || item.category_id === selectedFilters.category;
 
 		return matchesSearch && matchesWorn && matchesConsumable && matchesCategory;
-	});
+	}));
 
 	function handleScroll() {
 		isScrolled = window.scrollY > 10;
@@ -49,7 +53,7 @@
 	}
 </script>
 
-<svelte:window on:scroll={handleScroll} />
+<svelte:window onscroll={handleScroll} />
 
 <div class="min-h-screen bg-white flex flex-col">
 	<!-- Top Bar with Search -->
@@ -80,7 +84,7 @@
                        {selectedFilters.worn
 					? 'bg-primary-50 border-primary-200 text-primary-700'
 					: 'border-gray-200 text-gray-600'}"
-				on:click={() => (selectedFilters.worn = !selectedFilters.worn)}
+				onclick={() => (selectedFilters.worn = !selectedFilters.worn)}
 			>
 				<TShirt size={16} />
 				Worn
@@ -92,7 +96,7 @@
                        {selectedFilters.consumable
 					? 'bg-primary-50 border-primary-200 text-primary-700'
 					: 'border-gray-200 text-gray-600'}"
-				on:click={() => (selectedFilters.consumable = !selectedFilters.consumable)}
+				onclick={() => (selectedFilters.consumable = !selectedFilters.consumable)}
 			>
 				<Cookie size={16} />
 				Consumable
@@ -100,14 +104,14 @@
 		</div>
 	</header>
 
-	<div class="h-28" />
+	<div class="h-28"></div>
 	<!-- Spacer for fixed header -->
 
 	<!-- Main Content -->
 	<main class="flex-1 px-4 py-6 mb-16">
 		{#if loading}
 			<div class="flex justify-center">
-				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
 			</div>
 		{:else if !items.length}
 			<div class="text-center py-12">
@@ -127,8 +131,8 @@
 					<div
 						class="bg-white rounded-lg border border-gray-200 overflow-hidden cursor-pointer
                                hover:border-primary-500 transition-colors"
-						on:click={() => handleItemClick(item)}
-						on:keydown={(e) => {
+						onclick={() => handleItemClick(item)}
+						onkeydown={(e) => {
 							if (e.key === 'Enter' || e.key === ' ') {
 								e.preventDefault();
 								handleItemClick(item);
@@ -210,7 +214,7 @@
 		aria-label="Add new item"
 	>
 		{#if isCreatingItem}
-			<div class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+			<div class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
 		{:else}
 			<Plus size={24} weight="regular" />
 		{/if}

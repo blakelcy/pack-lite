@@ -1,3 +1,13 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+	@font-face {
+		font-family: 'Heavy Equipment';
+		src: local('Heavy Equipment'), local('Heavy-Equipment'), local('heavy equipment'),
+			local('heavy-equipment'), url('/fonts/heavy-equipment/HeavyEquipment.otf');
+		font-weight: normal;
+		font-display: swap;
+	}
+}

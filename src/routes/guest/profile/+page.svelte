@@ -5,8 +5,8 @@
 	import { authStore } from '$lib/stores/auth';
 	import { CaretCircleLeft } from 'phosphor-svelte';
 
-	let loading = false;
-	let error: string | null = null;
+	let loading = $state(false);
+	let error: string | null = $state(null);
 
 	async function handleBack() {
 		await goto('/guest/list');
@@ -38,7 +38,7 @@
 <div class="min-h-screen bg-white flex flex-col">
 	<!-- Header -->
 	<header class="px-4 py-3 flex items-center justify-between border-b">
-		<button class="p-2 text-gray-900 hover:text-gray-800" on:click={handleBack}>
+		<button class="p-2 text-gray-900 hover:text-gray-800" onclick={handleBack}>
 			<CaretCircleLeft size={24} weight="fill" />
 		</button>
 		<h1 class="flex-1 text-lg font-medium text-center">Create Account</h1>
@@ -76,7 +76,7 @@
 
 			<button
 				type="button"
-				on:click={handleSignup}
+				onclick={handleSignup}
 				disabled={loading}
 				class="relative w-full h-14 flex justify-center p-1 text-sm font-medium text-white border border-primary-900 rounded-xl bg-primary-400 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 			>

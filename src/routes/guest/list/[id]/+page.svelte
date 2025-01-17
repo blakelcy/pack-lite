@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { self } from 'svelte/legacy';
+
 	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
 	import { guestStore } from '$lib/stores/guest';
@@ -18,29 +20,33 @@
 	import GuestNewItemForm from '$lib/guest/GuestNewItemForm.svelte';
 	import html2canvas from 'html2canvas';
 
-	export let data: PageData;
+	interface Props {
+		data: PageData;
+	}
 
-	let isEditingName = false;
-	let showDeleteConfirm = false;
-	let showNewItemDrawer = false;
-	let showItemDetails = false;
-	let selectedItem: any = null;
-	let nameInputValue = '';
+	let { data }: Props = $props();
+
+	let isEditingName = $state(false);
+	let showDeleteConfirm = $state(false);
+	let showNewItemDrawer = $state(false);
+	let showItemDetails = $state(false);
+	let selectedItem: any = $state(null);
+	let nameInputValue = $state('');
 
 	// Subscribe to guest store
-	$: ({ list, items, error } = $guestStore);
+	let { list, items, error } = $derived($guestStore);
 
 	// Drawer gesture handling
-	let drawerElement: HTMLElement;
+	let drawerElement: HTMLElement = $state();
 	let isDragging = false;
 	let startY = 0;
 	let currentY = 0;
 	const threshold = 150;
 
 	// Group items by category (simplified version)
-	$: groupedItems = {
+	let groupedItems = $derived({
 		'All Items': items || []
-	};
+	});
 
 	function handleCloseDrawer() {
 		showNewItemDrawer = false;
@@ -135,7 +141,7 @@
 <div class="min-h-screen bg-white flex flex-col">
 	<!-- Top Bar -->
 	<header class="px-4 py-3 flex items-center justify-between border-b">
-		<button class="p-2 text-gray-900 hover:text-gray-800" on:click={handleBack}>
+		<button class="p-2 text-gray-900 hover:text-gray-800" onclick={handleBack}>
 			<CaretCircleLeft size={24} weight="fill" />
 		</button>
 
@@ -147,8 +153,8 @@
 						class="w-full px-2 py-1 text-lg font-medium text-center border-b
                        border-gray-300 focus:outline-none focus:border-primary-500"
 						bind:value={nameInputValue}
-						on:blur={handleNameUpdate}
-						on:keydown={(e) => {
+						onblur={handleNameUpdate}
+						onkeydown={(e) => {
 							if (e.key === 'Enter') {
 								e.preventDefault();
 								handleNameUpdate();
@@ -162,7 +168,7 @@
 			{:else}
 				<button
 					class="w-full text-lg font-medium text-center hover:text-primary-600 relative group"
-					on:click={startEditing}
+					onclick={startEditing}
 				>
 					<span class="relative">
 						{list?.name || 'New List'}
@@ -178,7 +184,7 @@
 		</div>
 		<button
 			class="p-2 text-red-600 hover:text-red-700 text-sm font-medium"
-			on:click={() => (showDeleteConfirm = true)}
+			onclick={() => (showDeleteConfirm = true)}
 		>
 			<Trash size={20} weight="fill" />
 		</button>
@@ -216,8 +222,8 @@
 								<div
 									class="bg-white rounded-lg border border-gray-200 overflow-hidden cursor-pointer
                                            hover:border-primary-500 transition-colors"
-									on:click={() => handleItemClick(item)}
-									on:keydown={(e) => {
+									onclick={() => handleItemClick(item)}
+									onkeydown={(e) => {
 										if (e.key === 'Enter' || e.key === ' ') {
 											e.preventDefault();
 											handleItemClick(item);
@@ -284,7 +290,7 @@
 		<button
 			class="p-1 text-center bg-white text-primary-500 font-medium border border-primary-900
                    rounded-xl hover:bg-primary-800"
-			on:click={handleExport}
+			onclick={handleExport}
 		>
 			<div
 				class="w-full h-full flex justify-center items-center gap-2 border border-white rounded-lg uppercase"
@@ -296,7 +302,7 @@
 		<button
 			class="p-1 text-center bg-primary-500 text-white font-medium border border-primary-900
                    rounded-xl hover:bg-primary-800"
-			on:click={handleNewItem}
+			onclick={handleNewItem}
 		>
 			<div
 				class="w-full h-full flex justify-center items-center border border-primary-900 rounded-lg"
@@ -310,7 +316,7 @@
 	{#if showDeleteConfirm}
 		<div
 			class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
-			on:click|self={() => (showDeleteConfirm = false)}
+			onclick={self(() => (showDeleteConfirm = false))}
 		>
 			<div class="bg-white rounded-lg p-6 max-w-sm w-full">
 				<h3 class="text-lg font-medium mb-4">Delete List</h3>
@@ -320,13 +326,13 @@
 				<div class="flex justify-end space-x-4">
 					<button
 						class="px-4 py-2 text-gray-600 hover:text-gray-800"
-						on:click={() => (showDeleteConfirm = false)}
+						onclick={() => (showDeleteConfirm = false)}
 					>
 						Cancel
 					</button>
 					<button
 						class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-						on:click={handleDelete}
+						onclick={handleDelete}
 					>
 						Delete
 					</button>
@@ -337,26 +343,26 @@
 
 	<!-- New Item Drawer -->
 	{#if showNewItemDrawer}
-		<div class="fixed inset-0 z-50" on:click|self={handleCloseDrawer}>
+		<div class="fixed inset-0 z-50" onclick={self(handleCloseDrawer)}>
 			<div
 				class="absolute inset-0 bg-black bg-opacity-50 transition-opacity duration-300"
 				transition:fly={{ duration: 200, y: 0, opacity: 1 }}
-			/>
+			></div>
 
 			<div
 				bind:this={drawerElement}
 				class="absolute inset-x-0 bottom-0 bg-gray-50 rounded-t-xl overflow-hidden touch-none"
 				style="transform: translateY(0)"
-				on:touchstart={handleTouchStart}
-				on:touchmove={handleTouchMove}
-				on:touchend={handleTouchEnd}
-				on:touchcancel={handleTouchEnd}
+				ontouchstart={handleTouchStart}
+				ontouchmove={handleTouchMove}
+				ontouchend={handleTouchEnd}
+				ontouchcancel={handleTouchEnd}
 			>
-				<div class="h-1 w-12 bg-gray-300 rounded-full mx-auto mt-3 mb-5" />
+				<div class="h-1 w-12 bg-gray-300 rounded-full mx-auto mt-3 mb-5"></div>
 
 				<header class="px-4 pb-3 border-b bg-white flex justify-between items-center">
 					<h2 class="text-lg font-medium">Add Item ({items?.length || 0}/20)</h2>
-					<button class="p-1 rounded-full hover:bg-gray-100" on:click={handleCloseDrawer}>
+					<button class="p-1 rounded-full hover:bg-gray-100" onclick={handleCloseDrawer}>
 						<XCircle size={24} />
 					</button>
 				</header>

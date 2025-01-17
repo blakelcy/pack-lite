@@ -1,38 +1,46 @@
 <script lang="ts">
+	import { run } from 'svelte/legacy';
+
 	import { createEventDispatcher } from 'svelte';
 	import { TShirt, Cookie } from 'phosphor-svelte';
 	import { guestStore } from '$lib/stores/guest';
 
 	const dispatch = createEventDispatcher();
 
-	export let mode: 'create' | 'edit' = 'create';
-	export let initialData: any = null;
+	interface Props {
+		mode?: 'create' | 'edit';
+		initialData?: any;
+	}
+
+	let { mode = 'create', initialData = null }: Props = $props();
 
 	type WeightUnit = 'oz' | 'g' | 'kg' | 'lb';
 
-	let name = '';
-	let description = '';
-	let isWorn = false;
-	let isConsumable = false;
-	let weight = '0.00';
-	let weightUnit: WeightUnit = 'oz';
-	let price = '';
-	let link = '';
-	let submitting = false;
+	let name = $state('');
+	let description = $state('');
+	let isWorn = $state(false);
+	let isConsumable = $state(false);
+	let weight = $state('0.00');
+	let weightUnit: WeightUnit = $state('oz');
+	let price = $state('');
+	let link = $state('');
+	let submitting = $state(false);
 
 	const weightUnits: WeightUnit[] = ['oz', 'g', 'lb', 'kg'];
 
 	// Initialize form with data if in edit mode
-	$: if (mode === 'edit' && initialData) {
-		name = initialData.name;
-		description = initialData.description || '';
-		weight = initialData.weight?.toString() || '0.00';
-		weightUnit = initialData.weight_unit || 'oz';
-		price = initialData.price?.toString() || '';
-		link = initialData.link || '';
-		isWorn = initialData.worn || false;
-		isConsumable = initialData.consumable || false;
-	}
+	run(() => {
+		if (mode === 'edit' && initialData) {
+			name = initialData.name;
+			description = initialData.description || '';
+			weight = initialData.weight?.toString() || '0.00';
+			weightUnit = initialData.weight_unit || 'oz';
+			price = initialData.price?.toString() || '';
+			link = initialData.link || '';
+			isWorn = initialData.worn || false;
+			isConsumable = initialData.consumable || false;
+		}
+	});
 
 	function formatDecimal(value: string): string {
 		const parsed = parseFloat(value.replace(/[^\d.-]/g, ''));
@@ -157,7 +165,7 @@
 				class="w-full px-3 py-2 border rounded-lg bg-white resize-none focus:border-primary-500
                        focus-visible:border-primary-500 outline-primary-500"
 				placeholder="Description"
-			/>
+			></textarea>
 		</div>
 
 		<!-- Details Section -->
@@ -170,7 +178,7 @@
 					type="button"
 					class="flex items-center justify-center grow gap-2 px-4 py-2 rounded-lg border border-primary-100
                            {isWorn ? 'bg-primary-500 text-white' : 'text-gray-500'}"
-					on:click={() => (isWorn = !isWorn)}
+					onclick={() => (isWorn = !isWorn)}
 				>
 					<TShirt size={20} />
 					<span>Worn</span>
@@ -180,7 +188,7 @@
 					type="button"
 					class="flex items-center justify-center grow gap-2 px-4 py-2 rounded-lg border border-primary-100
                            {isConsumable ? 'bg-primary-500 text-white' : 'text-gray-500'}"
-					on:click={() => (isConsumable = !isConsumable)}
+					onclick={() => (isConsumable = !isConsumable)}
 				>
 					<Cookie size={20} weight="fill" />
 					<span>Consumable</span>
@@ -197,8 +205,8 @@
 							inputmode="decimal"
 							id="weight"
 							bind:value={weight}
-							on:input={handleWeightInput}
-							on:blur={handleWeightBlur}
+							oninput={handleWeightInput}
+							onblur={handleWeightBlur}
 							placeholder="0.00"
 							class="w-full px-3 py-2 border rounded-lg bg-white focus:border-primary-500
                                    focus-visible:border-primary-500 outline-primary-500"
@@ -212,7 +220,7 @@
                                            {weightUnit === unit
 										? 'bg-primary-500 text-white'
 										: 'text-gray-500'}"
-									on:click={() => {
+									onclick={() => {
 										if (weightUnit !== unit && weight) {
 											const value = parseFloat(weight);
 											if (!isNaN(value)) {
@@ -239,8 +247,8 @@
 							inputmode="decimal"
 							id="price"
 							bind:value={price}
-							on:input={handlePriceInput}
-							on:blur={handlePriceBlur}
+							oninput={handlePriceInput}
+							onblur={handlePriceBlur}
 							placeholder="0.00"
 							class="w-full px-3 py-2 border rounded-lg bg-white focus:border-primary-500
                                    focus-visible:border-primary-500 outline-primary-500"
@@ -271,7 +279,7 @@
 			class="w-full h-full p-1 text-center bg-primary-500 text-white font-medium
                    border border-primary-900 rounded-xl hover:bg-primary-800
                    disabled:opacity-50 disabled:cursor-not-allowed"
-			on:click={handleSubmit}
+			onclick={handleSubmit}
 			disabled={submitting}
 		>
 			<div
@@ -280,7 +288,7 @@
 				{#if submitting}
 					<div
 						class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"
-					/>
+					></div>
 				{:else}
 					{mode === 'create' ? 'ADD ITEM' : 'SAVE CHANGES'}
 				{/if}

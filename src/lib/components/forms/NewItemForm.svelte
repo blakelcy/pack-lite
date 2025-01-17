@@ -1,5 +1,7 @@
 <!-- src/lib/components/forms/NewItemForm.svelte -->
 <script lang="ts">
+	import { run } from 'svelte/legacy';
+
 	import { createEventDispatcher } from 'svelte';
 	import { TShirt, Cookie } from 'phosphor-svelte';
 	import { itemStore } from '$lib/stores/itemStore';
@@ -11,9 +13,10 @@
 
 	const dispatch = createEventDispatcher();
 
-	export let listId: string | undefined = undefined;
-	export let mode: 'create' | 'edit' = 'create';
-	export let initialData: {
+	interface Props {
+		listId?: string | undefined;
+		mode?: 'create' | 'edit';
+		initialData?: {
 		name: string;
 		description: string;
 		weight: string;
@@ -23,21 +26,24 @@
 		image_url: string;
 		worn: boolean;
 		consumable: boolean;
-	} | null = null;
+	} | null;
+	}
+
+	let { listId = undefined, mode = 'create', initialData = null }: Props = $props();
 
 	type WeightUnit = 'oz' | 'g' | 'kg' | 'lb';
 
-	let name = '';
-	let description = '';
-	let isWorn = false;
-	let isConsumable = false;
-	let weight = '0.00';
-	let weightUnit: WeightUnit = 'oz';
-	let price = '';
-	let link = '';
-	let imageUrl = '';
-	let imageInput: HTMLInputElement;
-	let submitting = false;
+	let name = $state('');
+	let description = $state('');
+	let isWorn = $state(false);
+	let isConsumable = $state(false);
+	let weight = $state('0.00');
+	let weightUnit: WeightUnit = $state('oz');
+	let price = $state('');
+	let link = $state('');
+	let imageUrl = $state('');
+	let imageInput: HTMLInputElement = $state();
+	let submitting = $state(false);
 
 	const weightUnits: WeightUnit[] = ['oz', 'g', 'lb', 'kg'];
 
@@ -119,17 +125,19 @@
 		price = formatDecimal(price);
 	}
 
-	$: if (mode === 'edit' && initialData) {
-		name = initialData.name;
-		description = initialData.description;
-		weight = initialData.weight;
-		weightUnit = initialData.weight_unit;
-		price = initialData.price;
-		link = initialData.url;
-		imageUrl = initialData.image_url;
-		isWorn = initialData.worn;
-		isConsumable = initialData.consumable;
-	}
+	run(() => {
+		if (mode === 'edit' && initialData) {
+			name = initialData.name;
+			description = initialData.description;
+			weight = initialData.weight;
+			weightUnit = initialData.weight_unit;
+			price = initialData.price;
+			link = initialData.url;
+			imageUrl = initialData.image_url;
+			isWorn = initialData.worn;
+			isConsumable = initialData.consumable;
+		}
+	});
 
 	function handleImageSelect(e: Event) {
 		const input = e.target as HTMLInputElement;
@@ -182,7 +190,7 @@
 			<button
 				type="button"
 				class="absolute inset-0 flex items-center justify-center"
-				on:click={() => imageInput.click()}
+				onclick={() => imageInput.click()}
 			>
 				<div class="w-24 h-24 border-2 border-gray-400 rounded-lg flex items-center justify-center">
 					<span class="text-gray-400">+</span>
@@ -194,7 +202,7 @@
 			type="file"
 			accept="image/*"
 			class="hidden"
-			on:change={handleImageSelect}
+			onchange={handleImageSelect}
 		/>
 	</div>
 
@@ -209,7 +217,7 @@
 				required
 				class="w-full px-3 py-2 border rounded-lg bg-white focus:border-primary-500 focus-visible:border-primary-500 outline-primary-500"
 				placeholder="Name"
-				on:input={() => console.log('Name input changed:', name)}
+				oninput={() => console.log('Name input changed:', name)}
 			/>
 		</div>
 
@@ -223,7 +231,7 @@
 				rows="3"
 				class="w-full px-3 py-2 border rounded-lg bg-white resize-none focus:border-primary-500 focus-visible:border-primary-500 outline-primary-500"
 				placeholder="Description"
-			/>
+			></textarea>
 		</div>
 
 		<!-- Details Section -->
@@ -236,7 +244,7 @@
 					type="button"
 					class="flex items-center justify-center grow gap-2 px-4 py-2 rounded-lg border border-primary-100
                         {isWorn ? 'bg-primary-500 text-white ' : 'text-gray-500'}"
-					on:click={() => (isWorn = !isWorn)}
+					onclick={() => (isWorn = !isWorn)}
 				>
 					<TShirt size={20} />
 					<span>Worn</span>
@@ -246,7 +254,7 @@
 					type="button"
 					class="flex items-center justify-center grow gap-2 px-4 py-2 rounded-lg border border-primary-100
                         {isConsumable ? 'bg-primary-500 text-white' : 'text-gray-500'}"
-					on:click={() => (isConsumable = !isConsumable)}
+					onclick={() => (isConsumable = !isConsumable)}
 				>
 					<Cookie size={20} weight="fill" />
 					<span>Consumable</span>
@@ -263,8 +271,8 @@
 							inputmode="decimal"
 							id="weight"
 							bind:value={weight}
-							on:input={handleWeightInput}
-							on:blur={handleWeightBlur}
+							oninput={handleWeightInput}
+							onblur={handleWeightBlur}
 							placeholder="0.00"
 							class="w-full px-3 py-2 border rounded-lg bg-white focus:border-primary-500 focus-visible:border-primary-500 outline-primary-500"
 						/>
@@ -275,7 +283,7 @@
 									type="button"
 									class="flex items-center justify-center grow px-4 py-2 rounded-full border border-primary-100
                         {weightUnit === unit ? 'bg-primary-500 text-white' : 'text-gray-500'}"
-									on:click={() => {
+									onclick={() => {
 										if (weightUnit !== unit && weight) {
 											// Convert the value when changing units
 											const value = parseFloat(weight);
@@ -301,8 +309,8 @@
 						inputmode="decimal"
 						id="price"
 						bind:value={price}
-						on:input={handlePriceInput}
-						on:blur={handlePriceBlur}
+						oninput={handlePriceInput}
+						onblur={handlePriceBlur}
 						placeholder="0.00"
 						class="w-full px-3 py-2 border rounded-lg bg-white focus:border-primary-500 focus-visible:border-primary-500 outline-primary-500"
 					/>
@@ -355,7 +363,7 @@
 				{#if submitting}
 					<div
 						class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mx-auto"
-					/>
+					></div>
 				{:else}
 					{mode === 'create' ? 'ADD ITEM' : 'SAVE CHANGES'}
 				{/if}

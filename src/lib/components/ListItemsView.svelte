@@ -3,20 +3,24 @@
 	import { page } from '$app/stores';
 	import { Package, Link as LinkIcon } from 'phosphor-svelte';
 
-	export let listItems: any[] = [];
-	export let totalWeight: number = 0;
+	interface Props {
+		listItems?: any[];
+		totalWeight?: number;
+	}
+
+	let { listItems = [], totalWeight = 0 }: Props = $props();
 
 	// Group items by category
-	$: groupedItems = listItems.reduce((acc, item) => {
+	let groupedItems = $derived(listItems.reduce((acc, item) => {
 		const category = item.category || 'Uncategorized';
 		if (!acc[category]) {
 			acc[category] = [];
 		}
 		acc[category].push(item);
 		return acc;
-	}, {});
+	}, {}));
 
-	let showChart = false;
+	let showChart = $state(false);
 
 	function handleShowChart() {
 		showChart = !showChart;
@@ -44,7 +48,7 @@
 	<div class="fixed inset-0 bg-white z-50">
 		<div class="p-4 flex justify-between items-center border-b">
 			<h2 class="text-lg font-medium">Chart Breakdown</h2>
-			<button class="text-gray-600" on:click={() => (showChart = false)}> Done </button>
+			<button class="text-gray-600" onclick={() => (showChart = false)}> Done </button>
 		</div>
 		<div class="p-4">
 			<!-- Chart placeholder - to be implemented -->
@@ -66,7 +70,7 @@
 			<button
 				class="bg-green-800 text-white px-6 py-2 rounded-lg font-medium text-sm
                        flex items-center gap-2 hover:bg-green-900 transition-colors"
-				on:click={handleShowChart}
+				onclick={handleShowChart}
 			>
 				View Chart
 			</button>

@@ -5,6 +5,9 @@ export default {
 	content: ['./src/**/*.{html,js,svelte,ts}'],
 	theme: {
 		extend: {
+			fontFamily: {
+				heavyEquipment: ['Heavy Equipment']
+			},
 			colors: {
 				transparent: 'transparent',
 				current: 'currentColor',
@@ -31,6 +34,18 @@ export default {
 					700: '#332830',
 					800: '#271F25',
 					900: '#1B151A'
+				},
+				apple: {
+					1: '#2B4F65',
+					2: '#68939D',
+					3: '#85B0C8',
+					4: '#729AAE'
+				},
+				google: {
+					1: '#A99C5A',
+					2: '#56623B',
+					3: '#6A775B',
+					4: '#474726'
 				}
 			}
 		}

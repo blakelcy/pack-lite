@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { self } from 'svelte/legacy';
+
 	import { createEventDispatcher } from 'svelte';
 	import { XCircle, Info } from 'phosphor-svelte';
 	import NewItemForm from './NewItemForm.svelte';
@@ -8,12 +10,16 @@
 
 	const dispatch = createEventDispatcher();
 
-	export let item: ListItemWithDetails;
-	export let listId: string;
-	export let drawerElement: HTMLElement;
+	interface Props {
+		item: ListItemWithDetails;
+		listId: string;
+		drawerElement: HTMLElement;
+	}
 
-	let showDeleteConfirm = false;
-	let isDeleting = false;
+	let { item, listId, drawerElement = $bindable() }: Props = $props();
+
+	let showDeleteConfirm = $state(false);
+	let isDeleting = $state(false);
 
 	function handleClose() {
 		dispatch('close');
@@ -50,11 +56,11 @@
 </script>
 
 <!-- Semi-transparent overlay -->
-<div class="fixed inset-0 z-50" on:click|self={handleClose}>
+<div class="fixed inset-0 z-50" onclick={self(handleClose)}>
 	<div
 		class="absolute inset-0 bg-black bg-opacity-50 transition-opacity duration-300"
 		transition:fly={{ duration: 200, y: 0, opacity: 1 }}
-	/>
+	></div>
 
 	<!-- Drawer -->
 	<div
@@ -62,13 +68,13 @@
 		class="absolute inset-x-0 bottom-0 bg-gray-50 rounded-t-xl overflow-hidden touch-none"
 		style="transform: translateY(0)"
 	>
-		<div class="h-1 w-12 bg-gray-300 rounded-full mx-auto mt-3 mb-5" />
+		<div class="h-1 w-12 bg-gray-300 rounded-full mx-auto mt-3 mb-5"></div>
 
 		<!-- Header -->
 		<header class="px-4 pb-3 border-b bg-white">
 			<div class="flex justify-between items-center mb-2">
 				<h2 class="text-lg font-medium">Edit Item</h2>
-				<button class="p-1 rounded-full hover:bg-gray-100" on:click={handleClose}>
+				<button class="p-1 rounded-full hover:bg-gray-100" onclick={handleClose}>
 					<XCircle size={24} />
 				</button>
 			</div>
@@ -111,7 +117,7 @@
 					type="button"
 					class="w-full p-4 text-red-600 font-medium rounded-lg border border-red-200
                            hover:bg-red-50 transition-colors"
-					on:click={() => (showDeleteConfirm = true)}
+					onclick={() => (showDeleteConfirm = true)}
 				>
 					Remove from List
 				</button>
@@ -124,7 +130,7 @@
 {#if showDeleteConfirm}
 	<div
 		class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]"
-		on:click|self={() => (showDeleteConfirm = false)}
+		onclick={self(() => (showDeleteConfirm = false))}
 	>
 		<div class="bg-white rounded-lg p-6 max-w-sm w-full">
 			<h3 class="text-lg font-medium mb-4">Remove Item</h3>
@@ -136,7 +142,7 @@
 				<button
 					type="button"
 					class="px-4 py-2 text-gray-600 hover:text-gray-800"
-					on:click={() => (showDeleteConfirm = false)}
+					onclick={() => (showDeleteConfirm = false)}
 					disabled={isDeleting}
 				>
 					Cancel
@@ -145,13 +151,13 @@
 					type="button"
 					class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700
                            disabled:opacity-50 disabled:cursor-not-allowed"
-					on:click={handleRemoveFromList}
+					onclick={handleRemoveFromList}
 					disabled={isDeleting}
 				>
 					{#if isDeleting}
 						<div
 							class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"
-						/>
+						></div>
 					{:else}
 						Remove
 					{/if}

@@ -4,15 +4,15 @@
 	import { List, Package, User } from 'phosphor-svelte';
 
 	// Active tab handling - updated to handle root /app as lists
-	$: path = $page.url.pathname;
-	$: activeTab =
-		path === '/app' || path.includes('/lists')
+	let path = $derived($page.url.pathname);
+	let activeTab =
+		$derived(path === '/app' || path.includes('/lists')
 			? 'lists'
 			: path.includes('/gear')
 				? 'gear'
 				: path.includes('/profile')
 					? 'profile'
-					: 'lists';
+					: 'lists');
 </script>
 
 <nav class="fixed bottom-0 left-0 right-0 bg-white border-t z-10">

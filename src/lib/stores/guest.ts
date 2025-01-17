@@ -39,7 +39,17 @@ function createGuestStore() {
 		? (() => {
 				const stored = sessionStorage.getItem('guestData');
 				if (stored) {
-					return JSON.parse(stored);
+					try {
+						return JSON.parse(stored);
+					} catch (e) {
+						console.error('Error parsing stored guest data:', e);
+						return {
+							list: null,
+							items: [],
+							loading: false,
+							error: null
+						};
+					}
 				}
 				return {
 					list: null,
@@ -55,84 +65,92 @@ function createGuestStore() {
 				error: null
 			};
 
-	const { subscribe, set, update } = writable<GuestState>(initialState);
+	const store = writable<GuestState>(initialState);
 
 	// Save to sessionStorage whenever state changes
-	subscribe((state) => {
-		if (browser) {
+	if (browser) {
+		store.subscribe((state) => {
 			sessionStorage.setItem('guestData', JSON.stringify(state));
-		}
-	});
+		});
+	}
+
+	function getState() {
+		return get(store);
+	}
 
 	return {
-		subscribe,
+		subscribe: store.subscribe,
+		set: store.set,
 
-		// Create a new list (only if none exists)
 		createList: (name: string) => {
-			update((state) => {
-				if (state.list) {
-					return { ...state, error: 'Guest users can only create one list' };
-				}
+			const state = getState();
+			if (state.list) {
+				store.update((s) => ({ ...s, error: 'Guest users can only create one list' }));
+				return false;
+			}
 
-				const newList: GuestList = {
-					id: crypto.randomUUID(),
-					name,
-					created_at: new Date().toISOString(),
-					item_count: 0,
-					total_weight: 0
-				};
+			const newList: GuestList = {
+				id: crypto.randomUUID(),
+				name,
+				created_at: new Date().toISOString(),
+				item_count: 0,
+				total_weight: 0
+			};
 
-				return {
-					...state,
-					list: newList,
-					error: null
-				};
-			});
+			store.update((s) => ({
+				...s,
+				list: newList,
+				error: null
+			}));
+			return true;
 		},
 
-		// Add item to the list
 		addItem: (item: Omit<GuestItem, 'id' | 'created_at'>) => {
-			update((state) => {
-				if (!state.list) {
-					return { ...state, error: 'No list exists' };
-				}
+			const state = getState();
+			if (!state.list) {
+				store.update((s) => ({ ...s, error: 'No list exists' }));
+				return false;
+			}
 
-				if (state.items.length >= GUEST_LIMITS.MAX_ITEMS) {
-					return { ...state, error: 'Guest users can only add 20 items' };
-				}
+			if (state.items.length >= GUEST_LIMITS.MAX_ITEMS) {
+				store.update((s) => ({ ...s, error: 'Guest users can only add 20 items' }));
+				return false;
+			}
 
-				const newItem: GuestItem = {
-					...item,
-					id: crypto.randomUUID(),
-					created_at: new Date().toISOString()
-				};
+			const newItem: GuestItem = {
+				...item,
+				id: crypto.randomUUID(),
+				created_at: new Date().toISOString()
+			};
 
-				const newItems = [...state.items, newItem];
+			store.update((s) => {
+				const newItems = [...s.items, newItem];
 				const totalWeight = newItems.reduce((sum, item) => sum + (item.weight || 0), 0);
 
 				return {
-					...state,
+					...s,
 					items: newItems,
-					list: {
-						...state.list,
-						item_count: newItems.length,
-						total_weight: totalWeight
-					},
+					list: s.list
+						? {
+								...s.list,
+								item_count: newItems.length,
+								total_weight: totalWeight
+							}
+						: null,
 					error: null
 				};
 			});
+			return true;
 		},
 
 		updateListName: (listId: string, newName: string) => {
-			update((state) => {
-				if (!state.list || state.list.id !== listId) {
-					return state;
-				}
+			store.update((s) => {
+				if (!s.list || s.list.id !== listId) return s;
 
 				return {
-					...state,
+					...s,
 					list: {
-						...state.list,
+						...s.list,
 						name: newName
 					}
 				};
@@ -140,13 +158,11 @@ function createGuestStore() {
 		},
 
 		updateItem: (itemId: string, updates: Partial<Omit<GuestItem, 'id' | 'created_at'>>) => {
-			update((state) => {
-				const itemIndex = state.items.findIndex((item) => item.id === itemId);
-				if (itemIndex === -1) {
-					return state;
-				}
+			store.update((s) => {
+				const itemIndex = s.items.findIndex((item) => item.id === itemId);
+				if (itemIndex === -1) return s;
 
-				const updatedItems = [...state.items];
+				const updatedItems = [...s.items];
 				updatedItems[itemIndex] = {
 					...updatedItems[itemIndex],
 					...updates
@@ -155,11 +171,11 @@ function createGuestStore() {
 				const totalWeight = updatedItems.reduce((sum, item) => sum + (item.weight || 0), 0);
 
 				return {
-					...state,
+					...s,
 					items: updatedItems,
-					list: state.list
+					list: s.list
 						? {
-								...state.list,
+								...s.list,
 								total_weight: totalWeight
 							}
 						: null
@@ -168,16 +184,16 @@ function createGuestStore() {
 		},
 
 		removeItem: (itemId: string) => {
-			update((state) => {
-				const newItems = state.items.filter((item) => item.id !== itemId);
+			store.update((s) => {
+				const newItems = s.items.filter((item) => item.id !== itemId);
 				const totalWeight = newItems.reduce((sum, item) => sum + (item.weight || 0), 0);
 
 				return {
-					...state,
+					...s,
 					items: newItems,
-					list: state.list
+					list: s.list
 						? {
-								...state.list,
+								...s.list,
 								item_count: newItems.length,
 								total_weight: totalWeight
 							}
@@ -186,17 +202,15 @@ function createGuestStore() {
 			});
 		},
 
-		// Export list data
 		exportData: () => {
-			return get({ subscribe });
+			return getState();
 		},
 
-		// Clear all guest data
 		clear: () => {
 			if (browser) {
 				sessionStorage.removeItem('guestData');
 			}
-			set({
+			store.set({
 				list: null,
 				items: [],
 				loading: false,

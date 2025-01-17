@@ -1,5 +1,7 @@
-import { writable, derived } from 'svelte/store';
+// src/lib/stores/auth.ts
+import { browser } from '$app/environment';
 import type { User } from '@supabase/supabase-js';
+import { derived, writable } from 'svelte/store';
 
 interface AuthState {
 	user: User | null;
@@ -7,42 +9,85 @@ interface AuthState {
 	isGuest: boolean;
 }
 
-const createAuthStore = () => {
-	const { subscribe, set, update } = writable<AuthState>({
+export const authStore = writable<AuthState>({
+	user: null,
+	loading: true,
+	isGuest: browser ? sessionStorage.getItem('guestSession') === 'true' : false
+});
+
+// Create derived values
+export const isGuest = derived(authStore, ($authStore) => $authStore.isGuest);
+export const user = derived(authStore, ($authStore) => $authStore.user);
+export const loading = derived(authStore, ($authStore) => $authStore.loading);
+
+// Helper functions for state updates
+export function setUser(newUser: User | null) {
+	authStore.update((state) => ({
+		...state,
+		user: newUser,
+		loading: false,
+		isGuest: false
+	}));
+}
+
+export function setLoading(isLoading: boolean) {
+	authStore.update((state) => ({
+		...state,
+		loading: isLoading
+	}));
+}
+
+export function setGuest() {
+	if (browser) {
+		sessionStorage.setItem('guestSession', 'true');
+	}
+
+	authStore.update((state) => ({
+		...state,
+		isGuest: true,
+		loading: false,
+		user: null
+	}));
+}
+
+export function clearGuest() {
+	if (browser) {
+		sessionStorage.removeItem('guestSession');
+	}
+
+	authStore.update((state) => ({
+		...state,
+		isGuest: false
+	}));
+}
+
+export function clearAuth() {
+	if (browser) {
+		sessionStorage.removeItem('guestSession');
+	}
+
+	authStore.set({
 		user: null,
-		loading: true,
+		loading: false,
 		isGuest: false
 	});
+}
 
-	// Create a derived store for easy guest checking
-	const isGuest = derived({ subscribe }, ($state) => $state.isGuest);
-
-	return {
-		subscribe,
-		setUser: (user: User | null) =>
-			update((state) => ({ ...state, user, loading: false, isGuest: false })),
-		setLoading: (loading: boolean) => update((state) => ({ ...state, loading })),
-		setGuest: () => {
-			// Create guest session in sessionStorage
-			sessionStorage.setItem('guestSession', 'true');
-			update((state) => ({ ...state, isGuest: true, loading: false, user: null }));
-		},
-		clearGuest: () => {
-			sessionStorage.removeItem('guestSession');
-			update((state) => ({ ...state, isGuest: false }));
-		},
-		clear: () => {
-			sessionStorage.removeItem('guestSession');
-			set({ user: null, loading: false, isGuest: false });
-		},
-		// Helper to check guest status on app init
-		initGuest: () => {
-			const isGuest = sessionStorage.getItem('guestSession') === 'true';
-			if (isGuest) {
-				update((state) => ({ ...state, isGuest: true, loading: false }));
-			}
+// Initialize state
+export function initAuth() {
+	if (browser) {
+		const isGuestSession = sessionStorage.getItem('guestSession') === 'true';
+		if (isGuestSession) {
+			authStore.update((state) => ({
+				...state,
+				isGuest: true,
+				loading: false
+			}));
 		}
-	};
-};
+	}
+}
 
-export const authStore = createAuthStore();
+// Subscribe to auth changes
+export function subscribeToAuth(callback: (state: AuthState) => void) {
+	authStore.subscribe(callback);
+}
