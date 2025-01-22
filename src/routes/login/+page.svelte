@@ -15,9 +15,9 @@
 			}
 		},
 		{
-			desktop: '/images/background2.jpg',
-			tablet: '/images/background2.jpg',
-			mobile: '/images/background2.jpg',
+			desktop: '/images/background6.jpg',
+			tablet: '/images/background6.jpg',
+			mobile: '/images/background6.jpg',
 			alt: 'Midjourney Created background of a valley floor at the base of a mountain.',
 			buttonScheme: {
 				google: 'bg-google-2 hover:bg-google-2',
@@ -25,9 +25,9 @@
 			}
 		},
 		{
-			desktop: '/images/background3.jpg',
-			tablet: '/images/background3.jpg',
-			mobile: '/images/background3.jpg',
+			desktop: '/images/background11.jpg',
+			tablet: '/images/background11.jpg',
+			mobile: '/images/background11.jpg',
 			alt: 'Midjourney Created background of a valley floor at the base of a mountain.',
 			buttonScheme: {
 				google: 'bg-google-3 hover:bg-google-3',
@@ -35,9 +35,9 @@
 			}
 		},
 		{
-			desktop: '/images/background4.jpg',
-			tablet: '/images/background4.jpg',
-			mobile: '/images/background4.jpg',
+			desktop: '/images/background8.jpg',
+			tablet: '/images/background8.jpg',
+			mobile: '/images/background8.jpg',
 			alt: 'Midjourney Created background of a valley floor at the base of a mountain.',
 			buttonScheme: {
 				google: 'bg-google-4 hover:bg-google-4',

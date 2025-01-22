@@ -79,7 +79,7 @@
 
 <svelte:window onscroll={handleScroll} />
 
-<div class="min-h-screen bg-white flex flex-col">
+<div class="flex flex-col">
 	<!-- Top Bar with Search -->
 	<header
 		bind:this={header}
@@ -180,7 +180,9 @@
 			aria-label="Create new list"
 		>
 			{#if isCreatingList}
-				<div class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+				<div
+					class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"
+				></div>
 			{:else}
 				<Plus size={24} weight="regular" />
 			{/if}

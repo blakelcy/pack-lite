@@ -89,6 +89,20 @@ export const handle: Handle = async ({ event, resolve }) => {
 			getCurrentUser: async () => session?.user ?? null
 		};
 
+		// If logged in but no profile, redirect to onboarding
+		// Skip this check for the onboarding page itself and public routes
+		if (session?.user && !url.pathname.startsWith('/onboarding')) {
+			const { data: profile } = await supabaseServer
+				.from('profiles')
+				.select('packing_focus')
+				.eq('id', session.user.id)
+				.single();
+
+			if (!profile) {
+				throw redirect(303, '/onboarding');
+			}
+		}
+
 		// Root route redirection
 		if (url.pathname === '/') {
 			throw redirect(303, session ? '/app' : '/login');
