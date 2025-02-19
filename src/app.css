@@ -66,6 +66,14 @@
 
 		--ring: 0 0% 83.1%;
 	}
+
+	.default {
+		background-image: url('/images/background4.jpg') !important;
+	}
+
+	.camping {
+		background-image: url('/images/background7.jpg') !important;
+	}
 }
 
 @layer base {
