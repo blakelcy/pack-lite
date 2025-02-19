@@ -57,6 +57,7 @@
 
 	function switchTheme(themeId: ThemeType) {
 		setTheme(themeId);
+		console.log('Switched theme to:', themeId);
 	}
 
 	$: {
